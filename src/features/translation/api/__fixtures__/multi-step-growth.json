@@ -1,0 +1,40 @@
+{
+  "success": true,
+  "session_id": "32faca99-e84e-45b7-8074-9e492ec79583",
+  "status": "completed",
+  "created_at": "2026-04-22T16:29:16.021872",
+  "completed_at": "2026-04-22T16:29:19.196165",
+  "original_query": "Chicken breast left out on the counter for 2 hours at 22°C, then moved to the fridge for 6 hours at 5°C. Salmonella growth?",
+  "prediction": {
+    "organism": "SALMONELLA",
+    "model_type": "growth",
+    "engine": "combase_local",
+    "temperature_celsius": 22.0,
+    "duration_minutes": 480.0,
+    "ph": 7.0,
+    "water_activity": 0.99,
+    "mu_max": 0.6987719791865064,
+    "doubling_time_hours": 0.9919504519441245,
+    "total_log_increase": 0.6579520491247821,
+    "is_multi_step": true,
+    "steps": [
+      { "step_order": 1, "temperature_celsius": 22.0, "duration_minutes": 120.0 },
+      { "step_order": 2, "temperature_celsius": 5.0, "duration_minutes": 360.0 }
+    ],
+    "step_predictions": [
+      { "step_order": 1, "temperature_celsius": 22.0, "duration_minutes": 120.0, "mu_max": 0.6987719791865064, "log_increase": 0.6069456293386273 },
+      { "step_order": 2, "temperature_celsius": 5.0, "duration_minutes": 360.0, "mu_max": 0.019574436974432778, "log_increase": 0.05100641978615483 }
+    ],
+    "growth_description": "Moderate growth: 0.7 log increase (~5x population)"
+  },
+  "provenance": [
+    { "field": "organism", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": "From: 'salmonella'" }
+  ],
+  "warnings": [
+    { "type": "bias_correction", "message": "No pH specified. Using neutral default which is near-optimal for pathogen growth (conservative).", "field": "ph" },
+    { "type": "bias_correction", "message": "No water activity specified. Using conservative high default (0.99) which maximizes predicted growth.", "field": "water_activity" },
+    { "type": "warning", "message": "Temperature 5.0°C outside valid range [7.0, 40.0]", "field": null }
+  ],
+  "overall_confidence": 0.7000000000000001,
+  "error": null
+}

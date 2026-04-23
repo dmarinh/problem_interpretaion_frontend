@@ -49,11 +49,13 @@ These apply on every task in this project.
 - **Zod** for runtime validation at the API boundary
 - **Recharts** for the growth curve only
 - **lucide-react** for icons
-- **pnpm** as the package manager
+- **npm** as the package manager
 - **Node ≥ 20 LTS** (pinned via `.nvmrc`)
 - **Vitest** for unit tests
 
 Things deliberately NOT in the stack: Redux/Zustand/Jotai, Next.js, Axios, React Hook Form (v1), date-fns/dayjs, Framer Motion, Storybook, any CSS-in-JS runtime.
+
+The frontend-design skill is available and should be invoked for visual/styling work, with the spec's §7 as the authoritative design direction.
 
 ## Folder structure
 
@@ -68,16 +70,16 @@ Feature-first, not type-first. See §3.5 of the spec for the full layout. Key co
 ## Commands
 
 ```
-pnpm install          # install dependencies
-pnpm dev              # dev server (default: http://localhost:5173)
-pnpm build            # production build to dist/
-pnpm preview          # serve the production build
-pnpm test             # run unit tests with Vitest
-pnpm lint             # ESLint
-pnpm typecheck        # tsc --noEmit
+npm install           # install dependencies
+npm run dev           # dev server (default: http://localhost:5173)
+npm run build         # production build to dist/
+npm run preview       # serve the production build
+npm test              # run unit tests with Vitest
+npm run lint          # ESLint
+npm run typecheck     # tsc --noEmit
 ```
 
-Before considering any checkpoint complete: `pnpm typecheck && pnpm lint && pnpm test` must all pass clean.
+Before considering any checkpoint complete: `npm run typecheck && npm run lint && npm test` must all pass clean.
 
 ## Environment variables
 
@@ -98,7 +100,7 @@ If a session needs the backend running and it isn't, surface this — don't try 
 
 ## Code conventions
 
-- Function components only; no class components
+- Function components only; no class components — **one exception:** the `ErrorBoundary` in `src/main.tsx` is a class component because React's error boundary API has no function-component equivalent. It is the only class component permitted in this codebase.
 - Named exports; default exports only for `App.tsx` and Vite entry points
 - `type Props = { ... }` colocated with the component (not `interface`)
 - Absolute imports from `@/` for cross-feature; relative paths within a feature

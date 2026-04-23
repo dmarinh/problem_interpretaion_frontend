@@ -273,9 +273,18 @@ src/
 ├── features/
 │   └── translation/
 │       ├── api/
+│       │   ├── __fixtures__/         # Real backend response JSON (captured 2026-04-22)
+│       │   │   ├── single-step-growth.json
+│       │   │   ├── multi-step-growth.json
+│       │   │   └── thermal-inactivation.json
+│       │   ├── __tests__/
+│       │   │   ├── schema.test.ts    # Round-trip parse of all three fixtures
+│       │   │   └── client.test.ts    # Mocked fetch, one test per TranslateError.kind
 │       │   ├── schema.ts             # Zod schemas for request/response
-│       │   ├── types.ts              # Inferred TS types
-│       │   └── client.ts             # fetch wrapper, endpoint function
+│       │   ├── types.ts              # Inferred TS types (z.infer<> only)
+│       │   ├── client.ts             # fetch wrapper, endpoint function
+│       │   ├── errors.ts             # TranslateError discriminated union (§9.4)
+│       │   └── keys.ts               # translationKeys query-key helpers (§9.2)
 │       ├── hooks/
 │       │   └── useTranslateQuery.ts  # React Query wrapper
 │       ├── components/

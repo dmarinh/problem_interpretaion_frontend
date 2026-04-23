@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Source Serif 4', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-background:        var(--background);
+  --color-surface:           var(--surface);
+  --color-surface-muted:     var(--surface-muted);
+  --color-border:            var(--border);
+  --color-border-strong:     var(--border-strong);
+  --color-text:              var(--text);
+  --color-text-muted:        var(--text-muted);
+  --color-text-subtle:       var(--text-subtle);
+  --color-accent:            var(--accent);
+  --color-accent-fg:         var(--accent-fg);
+  --color-confidence-high:   var(--confidence-high);
+  --color-confidence-medium: var(--confidence-medium);
+  --color-confidence-low:    var(--confidence-low);
+  --color-warning:           var(--warning);
+  --color-correction:        var(--correction);
+  --color-danger:            var(--danger);
+  --color-growth:            var(--growth);
+  --color-inactivation:      var(--inactivation);
+}
+
+:root {
+  --background:    #FAFAF7;
+  --surface:       #FFFFFF;
+  --surface-muted: #F4F4F1;
+  --border:        #E4E4DF;
+  --border-strong: #C8C8C2;
+  --text:          #1A1A17;
+  --text-muted:    #5B5B55;
+  --text-subtle:   #8A8A82;
+  --accent:        #2E3A4C;
+  --accent-fg:     #FFFFFF;
+
+  --confidence-high:   #4A7C59;
+  --confidence-medium: #8B6914;
+  --confidence-low:    #9A4832;
+  --warning:           #8B6914;
+  --correction:        #6B4C8B;
+  --danger:            #8B2020;
+  --growth:            #8B6914;
+  --inactivation:      #2E6080;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Source Serif 4';
+  src: url('/fonts/source-serif-4-latin.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-mono, [class*="font-mono"] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "session_id": "b16d7eac-8b34-4a7e-933e-addd657777bc",
+  "status": "completed",
+  "created_at": "2026-04-22T16:28:57.663937",
+  "completed_at": "2026-04-22T16:29:01.906870",
+  "original_query": "One of our oven lines had a temperature drop during a production run of breaded chicken nuggets. The oven thermocouples show the product core temp only reached 68°C instead of our target 74°C. The nuggets were in the oven for the normal time of 8 minutes. Do we need to discard the batch?",
+  "prediction": {
+    "organism": "SALMONELLA",
+    "model_type": "thermal_inactivation",
+    "engine": "combase_local",
+    "temperature_celsius": 68.0,
+    "duration_minutes": 8.0,
+    "ph": 7.0,
+    "water_activity": 0.99,
+    "mu_max": -11915.617337708327,
+    "doubling_time_hours": null,
+    "total_log_increase": -1588.7489783611102,
+    "is_multi_step": false,
+    "steps": [
+      { "step_order": 1, "temperature_celsius": 68.0, "duration_minutes": 8.0 }
+    ],
+    "step_predictions": [
+      { "step_order": 1, "temperature_celsius": 68.0, "duration_minutes": 8.0, "mu_max": -11915.617337708327, "log_increase": -1588.7489783611102 }
+    ],
+    "growth_description": "Significant reduction: 1588.7 log decrease (>99.9999% killed)"
+  },
+  "provenance": [
+    { "field": "temperature_celsius", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": null },
+    { "field": "duration_minutes", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": null }
+  ],
+  "warnings": [
+    { "type": "bias_correction", "message": "No pH specified. Using neutral pH (7.0) which provides no additional thermal protection (conservative for cooking).", "field": "ph" },
+    { "type": "bias_correction", "message": "No water activity specified. Using high default (0.99) which doesn't assume any protective effect from low aw.", "field": "water_activity" },
+    { "type": "warning", "message": "No pathogen specified. Using Salmonella as conservative default.", "field": null },
+    { "type": "warning", "message": "Temperature 68.0°C outside valid range [54.5, 65.0]", "field": null },
+    { "type": "warning", "message": "Water activity 0.99 outside valid range [0.997, 1.0]", "field": null }
+  ],
+  "overall_confidence": 0.6000000000000001,
+  "error": null
+}

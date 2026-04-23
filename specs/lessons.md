@@ -37,3 +37,17 @@ Newest entries at the bottom. Do not edit or remove past entries.
 **Lesson:** The spec (§3.1) already states "Not a religious choice — npm is acceptable if preferred." The switch required no `package.json` script changes (all scripts call `vite`, `vitest run`, etc. directly — not pnpm-specific wrappers). Documentation updates only: `frontend-spec.md` §3.1 table, the §10 lock-file reference, and build/deploy command examples; `checkpoint-contract.md` CP1 deliverable and reviewer checklist; `CLAUDE.md` tech stack bullet and commands block; `README.md` install/run instructions.
 **Action:** Use `npm install`, `npm run dev`, `npm run build`, `npm run preview`, `npm test`, `npm run lint`, `npm run typecheck` throughout. The checkpoint gate command is `npm run typecheck && npm run lint && npm test`. Do not revert to pnpm without an explicit instruction.
 **Reference:** §3.1, CLAUDE.md "Commands", `README.md`.
+
+## 2026-04-23 — env validation must not throw at module level; ESM module errors are uncatchable by importers
+
+**Context:** Implementing env validation in `shared/config/env.ts` for Checkpoint 1; the CP1 reviewer checklist requires visible startup errors for invalid env vars.
+**Lesson:** When a module throws at evaluation time (top-level `throw` or `throw` in top-level `if`), the error propagates as an ESM module evaluation failure. No downstream importer can catch it with `try/catch` — the error fires as an uncaught exception before any code in the importing module runs. `ErrorBoundary` also cannot catch it because React hasn't mounted yet. The result is a blank page with no visible error. The fix: move validation into an exported `validateEnv()` function that `main.tsx` calls explicitly inside a `try/catch`. If validation fails, `main.tsx` renders an inline error page directly to the DOM (no React involved) and does not call `mountApp()`. `ErrorBoundary` is for errors thrown during React rendering, not for startup configuration errors.
+**Action:** Never throw at module level in any file that is statically imported at startup. Always gate startup validation behind an explicit function call in `main.tsx`, wrapped in a `try/catch` that renders a visible error page. Also: `vite-env.d.ts` must type all potentially-absent env vars as `string | undefined`, not `string`, so TypeScript truthiness guards are type-correct.
+**Reference:** §3.6, `src/shared/config/env.ts`, `src/main.tsx`, `src/vite-env.d.ts`.
+
+## 2026-04-23 — §3.5 is authoritative for folder structure and must be kept in sync when other sections add files
+
+**Context:** Amending §3.5 after Checkpoint 1 implementation revealed that `errors.ts`, `keys.ts`, `__fixtures__/`, and `__tests__/` were absent from the tree despite being required by §9.4, §9.2, and the fixture-circularity lesson.
+**Lesson:** §3.5 is the single authoritative picture of the folder structure. Other sections (§9.2, §9.4, lessons.md) can specify files by name and purpose, but if those files don't also appear in the §3.5 tree, a future session will scaffold from §3.5 alone and miss them. The discrepancy between the specified files and the tree was only caught at CP1 review.
+**Action:** Whenever a spec section or lessons entry introduces a new file (by name, path, or purpose), also add it to the §3.5 tree in the same edit. Treat the §3.5 tree as a checklist: if a file exists in the repo but not in the tree, or is specified in the spec but not in the tree, the tree is wrong and must be updated.
+**Reference:** §3.5, §9.2, §9.4.

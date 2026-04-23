@@ -1,0 +1,39 @@
+{
+  "success": true,
+  "session_id": "e029df55-d66a-4a90-8071-93a195a8be5d",
+  "status": "completed",
+  "created_at": "2026-04-22T16:28:39.114473",
+  "completed_at": "2026-04-22T16:28:41.869569",
+  "original_query": "Ground beef patty at 15°C for 45 minutes. What is the Salmonella growth risk?",
+  "prediction": {
+    "organism": "SALMONELLA",
+    "model_type": "growth",
+    "engine": "combase_local",
+    "temperature_celsius": 15.0,
+    "duration_minutes": 45.0,
+    "ph": 7.0,
+    "water_activity": 0.99,
+    "mu_max": 0.22092526545879357,
+    "doubling_time_hours": 3.1374735665497226,
+    "total_log_increase": 0.07195996777632384,
+    "is_multi_step": false,
+    "steps": [
+      { "step_order": 1, "temperature_celsius": 15.0, "duration_minutes": 45.0 }
+    ],
+    "step_predictions": [
+      { "step_order": 1, "temperature_celsius": 15.0, "duration_minutes": 45.0, "mu_max": 0.22092526545879357, "log_increase": 0.07195996777632384 }
+    ],
+    "growth_description": "Minimal growth: 0.07 log increase (<2x population)"
+  },
+  "provenance": [
+    { "field": "organism", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": "From: 'Salmonella'" },
+    { "field": "temperature_celsius", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": null },
+    { "field": "duration_minutes", "value": "N/A", "source": "user_explicit", "confidence": 0.9, "notes": null }
+  ],
+  "warnings": [
+    { "type": "bias_correction", "message": "No pH specified. Using neutral default which is near-optimal for pathogen growth (conservative).", "field": "ph" },
+    { "type": "bias_correction", "message": "No water activity specified. Using conservative high default (0.99) which maximizes predicted growth.", "field": "water_activity" }
+  ],
+  "overall_confidence": 0.7000000000000001,
+  "error": null
+}
