@@ -86,9 +86,9 @@ export default function App() {
           <img
             src="/logo.png"
             alt={strings.header.logoAlt}
-            width={100}
-            height={32}
-            className="h-8 w-auto mr-3"
+            width={151}
+            height={52}
+            className="h-10 w-auto mr-3"
           />
           <span
             className="font-serif text-2xl font-medium"
