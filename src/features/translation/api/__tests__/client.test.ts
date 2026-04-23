@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock env before importing client (client imports env at module level)
 vi.mock('@/shared/config/env', () => ({
-  env: { apiBaseUrl: 'http://localhost:8000', cacheMode: 'off' },
+  env: { apiBaseUrl: 'http://localhost:8000' },
 }));
 
 const VALID_RESPONSE = {

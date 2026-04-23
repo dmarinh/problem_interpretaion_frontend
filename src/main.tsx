@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
-import { env, validateEnv } from './shared/config/env';
+import { validateEnv } from './shared/config/env';
 import './styles/globals.css';
 
 function renderFatalError(message: string): void {
@@ -75,7 +75,7 @@ function mountApp(): void {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: env.cacheMode === 'session' ? Infinity : 0,
+        staleTime: 0,
         gcTime: 1000 * 60 * 30,
         retry: 0,
         refetchOnWindowFocus: false,

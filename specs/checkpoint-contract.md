@@ -37,7 +37,7 @@ This document tells Claude Code how to pace the implementation of the Problem Tr
 - Self-hosted fonts (Inter, Source Serif 4, JetBrains Mono) loaded via `@font-face`
 - Design tokens from §7.3 defined as CSS variables in `globals.css`
 - Folder skeleton matching §3.5 in place — empty files are acceptable for components not yet implemented, but the structure must be correct
-- `shared/config/env.ts` validating `VITE_API_BASE_URL` (required) and `VITE_CACHE_MODE` (defaulting to `"off"`, rejecting unknown values)
+- `shared/config/env.ts` validating `VITE_API_BASE_URL` (required)
 - `.env.development` with the localhost defaults; `.env.example` committed for reference
 - `features/translation/api/schema.ts` — Zod schemas for the full response shape per §4.3, with permissive enum-like fields per §4.4
 - `features/translation/api/types.ts` — types inferred via `z.infer<>`, no hand-written duplicates
@@ -45,7 +45,7 @@ This document tells Claude Code how to pace the implementation of the Problem Tr
 - `features/translation/api/errors.ts` — discriminated `TranslateError` type per §9.4
 - `features/translation/api/keys.ts` — query key helpers per §9.2
 - `App.tsx` rendering only the page layout: header (region A) and footer (region D) with chrome and tokens applied; the rest of the page is a blank panel placeholder
-- `main.tsx` with `QueryClientProvider` configured per §9.2 (cache mode-aware)
+- `main.tsx` with `QueryClientProvider` configured per §9.2
 - One-page `README.md` covering install, dev, build commands and the env var contract
 
 ### Tests required at this checkpoint
@@ -76,7 +76,7 @@ A short markdown report containing:
 - `npm run build` succeeds
 - `npm run lint` and `npm run typecheck` pass clean
 - The blank page renders with correct background, header typography, and footer treatment — visually matches the design tokens in §7.3 and the typography in §7.4
-- Both env vars work: app boots with defaults, app boots with `VITE_CACHE_MODE=session`, app fails clearly when `VITE_API_BASE_URL` is missing
+- App boots with defaults; app fails clearly when `VITE_API_BASE_URL` is missing
 - Schema tests pass; client error tests pass
 - Folder structure matches §3.5 exactly
 - No surprise dependencies in `package.json`
@@ -104,7 +104,7 @@ After producing the deliverable summary, Claude waits for explicit go-ahead ("pr
 - Auto-scroll to result area on submit per §8.12
 - Focus management per §8.12 (focus to result heading on success, return to textarea on picker close, etc.)
 - `aria-busy` and `aria-live="polite"` on the result area; `role="alert"` on error state
-- Both cache modes verified working: `off` re-runs every submit, `session` returns from cache on URL revisit
+- Every submit and every URL visit hits the backend (always-fetch behaviour verified)
 
 ### Tests required at this checkpoint
 
@@ -134,7 +134,7 @@ The reviewer must run the app against a live backend and exercise every flow:
 - **F4** — submit a second query after a first; loading state appears once, no flash through empty
 - **F5** — kill the backend mid-session, submit, see correct error message, retry after restoring backend works
 - **F6** — copy URL after a result, paste in new tab, recipient sees the same query auto-execute
-- Cache modes: with `VITE_CACHE_MODE=off` repeat submits hit the backend; with `VITE_CACHE_MODE=session` URL revisits are instant
+- Cache behaviour: repeat submits and URL revisits always hit the backend
 - Validation: empty query disables submit, > 2000 chars disables submit and shows counter
 - Keyboard: Cmd/Ctrl+Enter submits, Esc closes picker, Tab order is sensible
 - Each error variant displays correctly (transport, validation by killing the backend partway, application by triggering a backend error, degenerate by mocking if needed)

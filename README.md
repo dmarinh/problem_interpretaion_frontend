@@ -44,13 +44,10 @@ All three must pass clean before any checkpoint.
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `VITE_API_BASE_URL` | Yes | `http://localhost:8000` | URL of the FastAPI backend |
-| `VITE_CACHE_MODE` | No | `off` | `off` — every submit re-runs the backend; `session` — responses cached in-memory for the browser session |
 
 Copy `.env.example` to `.env.local` and edit as needed. The `.env.development` file sets the localhost defaults for local development.
 
-**`VITE_CACHE_MODE` behaviour:**
-- `off` — every form submit and every URL visit hits the backend. Use when evaluating model outputs or configurations.
-- `session` — mutation responses are written to the TanStack Query cache; navigating back to the same `?q=` URL replays from cache instantly. Use for snappy demo replay.
+Every submit and every URL visit fetches from the backend. No client-side cache between requests.
 
 ## URL state
 

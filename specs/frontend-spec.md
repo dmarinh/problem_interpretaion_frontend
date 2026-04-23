@@ -252,16 +252,11 @@ Key properties of this architecture:
 6. The shell updates `?q=` in the URL via `history.replaceState` so the current result is shareable.
 7. On error (network, validation, or `success: false`): the result area switches to the error state with the original query preserved and a retry action.
 
-**Caching — configurable via environment variable:**
+**Caching:**
 
-The app supports two cache modes, selected at build time:
+Every submit and every URL visit fetches from the backend. No client-side cache between requests.
 
-- **`VITE_CACHE_MODE=off` (default)** — every submit re-runs the backend. Re-submitting the same query returns a fresh response. This is the default because the intended development use case includes evaluating different model configurations through the UI; caching would hide variation.
-- **`VITE_CACHE_MODE=session`** — responses are cached by query string for the life of the browser session (`staleTime: Infinity`). Re-submitting the same query returns the cached result instantly. Use for a demo when the presenter wants snappy replay of previously-run examples.
-
-The default (`off`) is safer for evaluation. The session-cache mode is a deliberate, visible choice to be flipped immediately before the demo if desired. Switching requires a rebuild or a dev-server restart with the updated environment.
-
-`retry: 0` in both modes. Retries are a user action, not automatic.
+`retry: 0`. Retries are a user action, not automatic.
 
 ### 3.5 Folder structure
 
@@ -329,21 +324,18 @@ Notes:
 
 ### 3.6 Environment configuration
 
-Two environment variables:
+One environment variable:
 
 ```
 VITE_API_BASE_URL=http://localhost:8000
-VITE_CACHE_MODE=off                 # "off" (default) or "session"
 ```
 
 Accessed through a typed `shared/config/env.ts` module that:
 
-- Validates presence and values at startup
+- Validates presence at startup
 - Throws a clear error if `VITE_API_BASE_URL` is missing
-- Defaults `VITE_CACHE_MODE` to `"off"` if unset
-- Rejects any other value for `VITE_CACHE_MODE` with a startup error
 
-Default in `.env.development` is the localhost URL and cache mode off. Production deployment overrides as needed.
+Default in `.env.development` is the localhost URL. Production deployment overrides as needed.
 
 No `.env` secrets. The frontend holds no credentials — the backend is the one talking to LLM providers.
 
@@ -372,7 +364,7 @@ This section specifies how the frontend talks to the backend: the endpoint, the 
 | Default base URL (dev) | `http://localhost:8000` |
 | Content-Type | `application/json` |
 | Auth | None (v1) |
-| Idempotent | No (LLM extraction is non-deterministic in principle; in practice stable enough for caching when `VITE_CACHE_MODE=session`) |
+| Idempotent | No (LLM extraction is non-deterministic in principle) |
 | Typical latency | 2–10 seconds (dominated by LLM extraction + RAG retrieval) |
 
 ### 4.2 Request
@@ -518,22 +510,18 @@ From the live response provided:
 ```ts
 // features/translation/hooks/useTranslateQuery.ts (sketch)
 
-const cacheMode = env.VITE_CACHE_MODE  // "off" | "session"
-
 const mutation = useMutation({
   mutationFn: (query: string) => translateApi(query),
   // No automatic retry — retries are a user action.
   retry: 0,
 })
 
-// Separate query for URL-bootstrapped queries, keyed by query string,
-// so the same ?q= doesn't re-run unnecessarily within a session
-// (when cacheMode === "session").
+// Separate query for URL-bootstrapped queries, keyed by query string.
 const query = useQuery({
   queryKey: ['translate', queryString],
   queryFn: () => translateApi(queryString),
   enabled: !!queryString,
-  staleTime: cacheMode === 'session' ? Infinity : 0,
+  staleTime: 0,
   gcTime: 1000 * 60 * 30,  // 30 min
   retry: 0,
 })
@@ -542,12 +530,9 @@ const query = useQuery({
 Two concurrent concerns:
 
 - **Mutation** (`useMutation`) — fired when the user clicks submit. Always runs. Updates the URL on success.
-- **Query** (`useQuery`) — fired on mount if `?q=` is present. Respects the cache policy selected by `VITE_CACHE_MODE`.
+- **Query** (`useQuery`) — fired on mount if `?q=` is present. `staleTime: 0` means the backend is always hit.
 
-**Cache policy behaviour:**
-
-- **`VITE_CACHE_MODE=off`:** `staleTime: 0`, so the bootstrap query always fetches fresh. The mutation always fetches fresh (mutations never check cache). Re-submitting identical queries always re-hits the backend.
-- **`VITE_CACHE_MODE=session`:** `staleTime: Infinity` for bootstrap queries; additionally, on a successful mutation the result is written into the query cache via `queryClient.setQueryData(['translate', query], response)`, so subsequent URL visits to the same `?q=` return cached data instantly. Re-submitting an identical query via the mutation still re-hits the backend (mutations don't check cache by default), but navigating back to the same `?q=` URL uses cache.
+Every submit and every URL visit fetches from the backend. No client-side cache between requests.
 
 ### 4.9 Request lifecycle expectations
 
@@ -863,7 +848,7 @@ Flows not covered (out of scope, noted for completeness): cancelling an in-fligh
 
 1. App shell mounts. `URLSearchParams` yields `q`. Query is decoded and written into textarea state.
 2. Result area transitions directly to **loading state** — the query is already in flight on mount. The user sees the echoed query and the loading skeleton immediately.
-3. `useTranslateQuery` fires on mount with the bootstrapped query. Because this is a `useQuery` (not a mutation) keyed by the query string, behaviour depends on cache mode: with `VITE_CACHE_MODE=session`, navigating to the same URL later in the session uses the cache; with `VITE_CACHE_MODE=off` (the default), the backend is always hit.
+3. `useTranslateQuery` fires on mount with the bootstrapped query. `staleTime: 0` means the backend is always hit.
 4. On response: same as F1 steps 6–7. The URL is not rewritten (it's already correct).
 
 **Edge cases:**
@@ -884,12 +869,7 @@ Flows not covered (out of scope, noted for completeness): cancelling an in-fligh
 3. Result area transitions from success (or error) to **loading state**. It does *not* flash through the empty state — the transition is direct. Keeps the perceived flow smooth during a live demo.
 4. Remainder identical to F1 steps 5–7. The URL is updated to the new query on success.
 
-**Cache behaviour:**
-
-- With `VITE_CACHE_MODE=off` (default): every submit hits the backend. Useful for evaluating different model configurations.
-- With `VITE_CACHE_MODE=session`: URL-bootstrapped re-visits of a previously-seen query return from cache instantly; explicit mutation submits still hit the backend (React Query mutations do not check the query cache). During a demo with session caching on, flipping between examples via the picker re-runs the backend; opening a previously-visited shared URL replays from cache.
-
-In both modes the cache is keyed strictly on the query string; minor edits (e.g. trailing whitespace) invalidate the cache.
+Every submit hits the backend. The cache is keyed by query string; minor edits (e.g. trailing whitespace) produce a fresh request.
 
 ### 6.6 F5 — Retry after error
 
@@ -947,7 +927,7 @@ The total backend latency (2–10 s) is non-trivial for a demo. The flow design 
 
 - **Echoed query during loading.** The user sees their words immediately; only the result is delayed.
 - **Skeleton matches final layout.** Structural layout does not reflow on response arrival, only content fills in.
-- **Cache hits are instant (session mode only).** In `VITE_CACHE_MODE=session`, flipping back to a previously-visited shared URL has no loading state. In `VITE_CACHE_MODE=off`, every visit incurs backend latency — appropriate for evaluation, less ideal for demo rhythm (revisit the mode choice before the demo).
+- **Every visit incurs backend latency.** The 2–10 s wait is consistent and expected — appropriate for the evaluation use case.
 - **No spinner-only loading.** A centred spinner on an empty page feels broken. The skeleton approach feels intentional.
 
 ### 6.10 Input validation
@@ -1483,7 +1463,7 @@ Triggered on submit or on URL bootstrap. Persists until response.
 - **Shimmer:** subtle opacity cycle on skeleton blocks per §7.9
 - **Accessibility:** the region has `aria-busy="true"` and `aria-live="polite"`
 
-Duration typically 2–10 s. Never shorter than ~400 ms (even cached responses briefly show the loading state to avoid jarring flashes) — except when the cache hit is instantaneous in `VITE_CACHE_MODE=session`, in which case loading is skipped entirely.
+Duration typically 2–10 s.
 
 #### 8.5.3 Error state
 
@@ -1928,7 +1908,7 @@ Four categories of state in the app. Each has exactly one home.
 
 - No global client store (no Redux, no Zustand, no Jotai). Verified unnecessary at this scope.
 - No persistence across reloads beyond the URL. No `localStorage`, no cookies.
-- No history of past queries. If the user wants to re-run an earlier query, they use browser back/forward (which replays `?q=` through React Query's cache when `VITE_CACHE_MODE=session`; otherwise re-runs the backend).
+- No history of past queries. If the user wants to re-run an earlier query, they use browser back/forward (which re-runs the backend on each visit).
 - No "draft" tracking. If the user types a query and navigates away, the query is lost. Acceptable per §6.12.
 
 ### 9.2 Server state — TanStack Query ownership
@@ -1938,12 +1918,10 @@ The translation API is the only server state. All of it flows through a single m
 **Configuration (at `main.tsx`):**
 
 ```ts
-const cacheMode = env.VITE_CACHE_MODE  // "off" | "session"
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: cacheMode === 'session' ? Infinity : 0,
+      staleTime: 0,
       gcTime: 1000 * 60 * 30,       // 30 min in cache
       retry: 0,                     // No auto-retry
       refetchOnWindowFocus: false,  // Demo-friendly; no surprise re-runs
@@ -1956,7 +1934,7 @@ const queryClient = new QueryClient({
 })
 ```
 
-Rationale for each setting already established in §3.4 and §4.8; the configuration is collected here for a single source of truth.
+Rationale for each setting established in §3.4 and §4.8; the configuration is collected here for a single source of truth.
 
 **Query keys — stable and explicit:**
 
@@ -1970,18 +1948,9 @@ export const translationKeys = {
 
 One query family. Keys are typed `as const` so that TanStack's type inference picks up the exact string tuples. All query/mutation calls reference these helpers; no inline string arrays.
 
-**Cache semantics — per mode:**
+**Cache semantics:**
 
-**`VITE_CACHE_MODE=off` (default):**
-- `staleTime: 0` — every bootstrap query fetches fresh
-- Mutations always fetch fresh (they do not check the query cache by default)
-- A successful mutation response is *still* written to the query cache via `queryClient.setQueryData` (so that if the URL later routes to the same `?q=`, React Query's internal machinery behaves consistently), but the stale-time policy immediately invalidates it for refetch on the next access
-- Net effect: every submit, every URL visit, hits the backend
-
-**`VITE_CACHE_MODE=session`:**
-- `staleTime: Infinity` — cached responses never go stale within the session
-- After a successful mutation, its response is written into the query cache at `translationKeys.byQuery(query)` via `queryClient.setQueryData`. Subsequent URL visits for the same `?q=` then hit the cache instantly.
-- Re-submitting an identical query via the mutation still re-hits the backend (mutations don't check cache by default), but navigating back to a previously-submitted `?q=` URL uses cache.
+`staleTime: 0` — every bootstrap query fetches fresh. Mutations always fetch fresh. Every submit and every URL visit hits the backend.
 
 ### 9.3 The single hook — `useTranslateQuery`
 
@@ -2310,7 +2279,7 @@ Scope of tests in v1 is deliberately small. The state management is simple; test
 ### 9.13 What the state layer deliberately does not do
 
 - **No optimistic updates.** The backend takes 2–10 s; nothing about this scope benefits from optimism.
-- **No background refetching.** The same `?q=` produces the same UI for the session (§6.7) when in session cache mode; in off mode, every visit re-fetches.
+- **No background refetching.** Every explicit visit to the same `?q=` re-runs the backend.
 - **No websockets, no SSE, no polling.** Single request-response per submit.
 - **No state persistence.** Close the tab, lose the state. Intentional.
 - **No cross-tab synchronisation.** If the user has two tabs open and submits in one, the other does not update. Zero value at this scope.
@@ -2318,7 +2287,7 @@ Scope of tests in v1 is deliberately small. The state management is simple; test
 
 ### 9.14 Summary — the state story in one paragraph
 
-The app has one piece of server state (the translation response), owned by TanStack Query and keyed by query string. Cache policy is controlled by `VITE_CACHE_MODE` — `off` (default) means every submit re-runs the backend, `session` means cached responses are reused within the browser session. One hook (`useTranslateQuery`) wraps that state and exposes a minimal surface (`status`, `data`, `error`, `submit`, `retry`). The URL carries a single parameter (`?q=`) that is read once on mount and written once per successful submit, coupling the browser history to the displayed result without persisting anything else. The textarea holds its own transient `useState`. The example picker holds its own transient `useState`. Transformations (growth curve, warning correlation, formatting) are pure functions, colocated with the components that need them, memoised only where measurably beneficial. Everything else is a plain re-render.
+The app has one piece of server state (the translation response), owned by TanStack Query and keyed by query string. Every submit and every URL visit fetches from the backend — no client-side cache between requests. One hook (`useTranslateQuery`) wraps that state and exposes a minimal surface (`status`, `data`, `error`, `submit`, `retry`). The URL carries a single parameter (`?q=`) that is read once on mount and written once per successful submit, coupling the browser history to the displayed result without persisting anything else. The textarea holds its own transient `useState`. The example picker holds its own transient `useState`. Transformations (growth curve, warning correlation, formatting) are pure functions, colocated with the components that need them, memoised only where measurably beneficial. Everything else is a plain re-render.
 
 ---
 
@@ -2416,7 +2385,7 @@ No polyfills in v1. The stack targets ES2022.
 | URL parameter handling | Decoded value treated as untrusted text. Rendered in textarea and echoed in result area — never evaluated, interpolated into HTML, or used as a URL |
 | API response handling | Validated via Zod at the boundary. Never interpolated into HTML. `notes` field contents (which may include citation tags like `[CDC-2011-T3]`) rendered as text — citation tags detected via regex and styled as text, not as links |
 | Third-party dependencies | Locked via `package-lock.json`. No auto-updating loaders. |
-| Environment variables | Only `VITE_API_BASE_URL` and `VITE_CACHE_MODE` are exposed to the client bundle. No secrets anywhere in the frontend. |
+| Environment variables | Only `VITE_API_BASE_URL` is exposed to the client bundle. No secrets anywhere in the frontend. |
 | External requests | None. No analytics, no telemetry, no CDN-fetched fonts (§7.14). Only request made by the frontend is to `VITE_API_BASE_URL/api/v1/translate`. |
 | CORS | Backend sets `allow_origins=["*"]` — flagged in §3.7 for production hardening, not a v1 blocker |
 
@@ -2588,7 +2557,7 @@ Items appearing as "deferred", "out of scope", "future", or "stretch goal" earli
 | CI pipeline | §10.8 | No production deployment; not a v1 blocker |
 | Copy-to-clipboard share button | §6.7 | URL bar is the share mechanism in v1 |
 | In-flight cancel button | §6.12 | Corner-case UX for marginal benefit |
-| Explicit "re-run" action bypassing cache | §6.12 | Default cache mode (off) already re-runs every submit |
+| Explicit "re-run" action bypassing cache | §6.12 | Every submit always re-runs the backend |
 | Timestamp parameter in shared URLs | §6.7 | Marginal benefit for added complexity |
 | "/" keyboard shortcut to focus textarea | §8.12 | Nice-to-have; not v1 |
 | Print styles | §8.12 | No stated need |
@@ -2602,7 +2571,7 @@ For each major deferred feature, a brief note on where it plugs into the v1 arch
 
 **Clarification loop.** Requires backend support (the orchestrator needs to return "needs clarification" as a response state). In the frontend, this becomes a new branch in the state machine (§6.8): success / error / **clarification-needed**. The clarification state would render a panel above C1 with the backend-supplied questions, rewriting the submit path to include the user's clarifications. The hook contract in §9.3 extends by one more discriminator on `status`.
 
-**Query history.** A new top-level component — history sidebar, or header dropdown — lists past queries. Persistence via IndexedDB (a keyed store by `{query, timestamp, response hash}`). Does not touch `useTranslateQuery`; the history component reads from its own hook and, on click, calls `submit(query)`. React Query's cache already keys by query string, so repeat submissions of an historical query return instantly (when in session cache mode).
+**Query history.** A new top-level component — history sidebar, or header dropdown — lists past queries. Persistence via IndexedDB (a keyed store by `{query, timestamp, response hash}`). Does not touch `useTranslateQuery`; the history component reads from its own hook and, on click, calls `submit(query)`.
 
 **Authentication.** A provider wraps the app, injects a token into `translateApi`'s fetch calls, and adds a login screen. The feature module is untouched.
 
@@ -2664,7 +2633,7 @@ Items that were open during spec-writing and have been resolved. Listed here for
 | Q2 | Display formatting opinionated calls | Defaults in §4.5 accepted |
 | Q3 | Typography commitment | Full hybrid serif-plus-sans (§7.4) accepted |
 | Q4 | Colour palette character | Defaults in §7.3 accepted |
-| Q5 | Cache policy | Configurable via `VITE_CACHE_MODE` env var; default `off` (every submit re-runs the backend). Can be switched to `session` for the demo if snappy replay is desired. |
+| Q5 | Cache policy | Every submit and every URL visit fetches from the backend. Session caching removed (CP2 — complexity not justified by the evaluation-first use case). |
 | Q6 | Example picker one-line summaries | To be drafted in `exampleQueries.ts` during implementation, reviewed against the live system's actual behaviour |
 | Q7 | Footer links | **Rendered inert** (text only, no hyperlinks) |
 
@@ -2702,7 +2671,7 @@ Ranked by impact × likelihood. Each has a named mitigation or acceptance.
 
 - *Impact:* Medium — a demo with 30-second waits is painful
 - *Likelihood:* Low for the configured setup; higher if a slow model variant is used
-- *Mitigation:* Loading state design (§8.5.2) makes wait time feel intentional. Pre-demo measurement of each curated query's latency; swap any query that consistently exceeds ~10 s. For the demo itself, consider switching to `VITE_CACHE_MODE=session` so a second pass through examples is instant.
+- *Mitigation:* Loading state design (§8.5.2) makes wait time feel intentional. Pre-demo measurement of each curated query's latency; swap any query that consistently exceeds ~10 s.
 
 **R4 — Step-scoped warning correlation heuristic misfires.**
 
@@ -2750,7 +2719,7 @@ Ranked by impact × likelihood. Each has a named mitigation or acceptance.
 
 A different category from risks — things currently assumed true that, if false, require spec revisions.
 
-- **`VITE_CACHE_MODE=off` is the right default.** It favours the evaluation use case over the demo use case. If the demo is imminent and evaluation is done, flipping to `session` for the demo session is a one-line env-var change.
+- **Always-fetch is the right behaviour.** Removed the session cache option (CP2) — the evaluation use case needs fresh backend calls, and the complexity wasn't justified.
 - **The 9 curated queries all succeed.** The spec is built around this assumption. If some fail, the demo set shrinks; the UI is unaffected but the narrative flow is.
 - **The backend's response time is 2–10 s.** If it's consistently longer (say, 30+ s), the loading state design needs a stronger signal of progress — possibly the streaming option from §4.9 becomes necessary rather than optional.
 - **The presenter narrates the demo.** If the demo becomes self-serve (e.g. a kiosk for the advisory board), the copy in §8.13 is too terse and needs richer in-UI explanation.

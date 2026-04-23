@@ -1,5 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { env } from '@/shared/config/env';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { translateApi } from '../api/client';
 import { translationKeys } from '../api/keys';
 import type { TranslationResponse } from '../api/types';
@@ -23,15 +22,12 @@ export interface UseTranslateQueryResult {
 export function useTranslateQuery(
   initialQuery: string | null,
 ): UseTranslateQueryResult {
-  const qc = useQueryClient();
-
   // URL-bootstrapped query — fires on mount when ?q= is present.
   const bootstrap = useQuery<TranslationResponse, TranslateError>({
     queryKey: translationKeys.byQuery(initialQuery ?? ''),
     queryFn: () => translateApi(initialQuery!),
     enabled: !!initialQuery,
-    // Per §4.8: staleTime driven by cache mode; gcTime always 30 min.
-    staleTime: env.cacheMode === 'session' ? Infinity : 0,
+    staleTime: 0,
     gcTime: 1000 * 60 * 30,
     retry: 0,
   });
@@ -39,10 +35,6 @@ export function useTranslateQuery(
   // User-initiated submit mutation.
   const mutation = useMutation<TranslationResponse, TranslateError, string>({
     mutationFn: translateApi,
-    onSuccess: (data, query) => {
-      // Write into cache so session-mode URL revisits are instant (§9.2).
-      qc.setQueryData<TranslationResponse>(translationKeys.byQuery(query), data);
-    },
   });
 
   // Derive unified state — mutation takes priority over bootstrap.

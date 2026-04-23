@@ -83,12 +83,11 @@ Before considering any checkpoint complete: `npm run typecheck && npm run lint &
 
 ## Environment variables
 
-Two variables, both validated at startup in `shared/config/env.ts`:
+One variable, validated at startup in `shared/config/env.ts`:
 
 - `VITE_API_BASE_URL` — required. Defaults to `http://localhost:8000` in `.env.development`.
-- `VITE_CACHE_MODE` — optional. `"off"` (default) or `"session"`. Controls TanStack Query cache behaviour.
-  - `off` — every submit re-runs the backend; every URL visit re-fetches. Use for evaluating models and configurations.
-  - `session` — `staleTime: Infinity`; mutation responses written to cache; URL revisits replay from cache. Use for snappy demo replay.
+
+Every submit and every URL visit fetches from the backend. No client-side cache between requests.
 
 Commit `.env.example`, never commit real `.env` values.
 
