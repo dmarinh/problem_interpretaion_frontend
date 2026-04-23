@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { TranslationResponse } from './types';
 
 const StepSchema = z.object({
   step_order: z.number(),
@@ -58,3 +59,36 @@ export const TranslationResponseSchema = z.object({
   overall_confidence: z.number().nullable(),
   error: z.string().nullable(),
 });
+
+/**
+ * Dev-mode consistency assertions for the parsed response (§9.11).
+ * All are console.warn — never thrown, so they don't break the demo.
+ */
+export function runDevAssertions(data: TranslationResponse): void {
+  if (!import.meta.env.DEV) return
+  const { prediction } = data
+  if (!prediction) return
+
+  if (prediction.steps.length !== prediction.step_predictions.length) {
+    console.warn(
+      `[schema] prediction.steps.length (${prediction.steps.length}) ≠ ` +
+        `prediction.step_predictions.length (${prediction.step_predictions.length})`,
+    )
+  }
+
+  if (prediction.is_multi_step !== prediction.steps.length > 1) {
+    console.warn(
+      `[schema] prediction.is_multi_step (${prediction.is_multi_step}) ` +
+        `inconsistent with steps.length (${prediction.steps.length})`,
+    )
+  }
+
+  for (let i = 0; i < prediction.step_predictions.length; i++) {
+    const sp = prediction.step_predictions[i]
+    if (sp !== undefined && sp.step_order !== i + 1) {
+      console.warn(
+        `[schema] step_predictions[${i}].step_order is ${sp.step_order}, expected ${i + 1}`,
+      )
+    }
+  }
+}

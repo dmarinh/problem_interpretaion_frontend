@@ -1,5 +1,5 @@
 import { env } from '@/shared/config/env';
-import { TranslationResponseSchema } from './schema';
+import { TranslationResponseSchema, runDevAssertions } from './schema';
 import type { TranslationResponse } from './types';
 import type { TranslateError } from './errors';
 
@@ -36,6 +36,8 @@ export async function translateApi(query: string): Promise<TranslationResponse> 
   }
 
   const data = parsed.data;
+
+  runDevAssertions(data);
 
   if (!data.success) {
     throw { kind: 'application', message: data.error ?? '' } satisfies TranslateError;

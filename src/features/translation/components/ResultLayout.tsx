@@ -1,7 +1,14 @@
+import { useMemo } from 'react';
 import type { TranslationResponse } from '../api/types';
 import type { TranslateError } from '../api/errors';
 import { strings } from '../data/strings';
+import { correlateWarnings, buildWarningStepMap } from '../utils/warnings';
 import { ErrorState } from './ErrorState';
+import { TranslationPanel } from './TranslationPanel';
+import { StepTimeline } from './StepTimeline';
+import { PredictionPanel } from './PredictionPanel';
+import { ProvenancePanel } from './ProvenancePanel';
+import { WarningsStrip } from './WarningsStrip';
 
 type Status = 'empty' | 'loading' | 'error' | 'success';
 
@@ -217,191 +224,45 @@ function LoadingState({
   );
 }
 
-// ── Success placeholder (CP2 — real panels come at Checkpoint 3) ───────────────
+// ── Success state — five real panels (C1–C5) ──────────────────────────────────
 
-function SuccessPlaceholder({
+function SuccessState({
   data,
   headingRef,
 }: {
   data: TranslationResponse;
   headingRef: Props['headingRef'];
 }) {
-  const p = data.prediction!;
+  const p = data.prediction!
+
+  // §9.10: memoised because it's computed once per response.
+  const { perStep, perStep: perStepWarnings } = useMemo(
+    () => correlateWarnings(data.warnings, p.steps),
+    [data.warnings, p.steps],
+  )
+
+  const warningStepMap = useMemo(
+    () => buildWarningStepMap(perStep),
+    [perStep],
+  )
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px',
-      }}
-    >
-      {/* Main panel */}
-      <section
-        style={{
-          backgroundColor: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: '4px',
-          padding: '24px',
-        }}
-      >
-        <h2
-          ref={headingRef}
-          tabIndex={-1}
-          style={{
-            fontFamily: 'var(--font-serif, Source Serif 4, serif)',
-            fontSize: '18px',
-            fontWeight: 600,
-            color: 'var(--text)',
-            marginBottom: '4px',
-            lineHeight: 1.2,
-            outline: 'none',
-          }}
-        >
-          Translation result
-        </h2>
-        <div
-          style={{
-            height: '1px',
-            backgroundColor: 'var(--border)',
-            marginBottom: '20px',
-          }}
-        />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* C1 — Translation Panel: "your words ↔ system's parameters" */}
+      <TranslationPanel data={data} headingRef={headingRef} />
 
-        {/* Key fields — placeholder until Checkpoint 3 panels are implemented */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '200px 1fr',
-            gap: '12px 16px',
-            fontFamily: 'var(--font-sans, Inter, sans-serif)',
-            fontSize: '14px',
-          }}
-        >
-          <KeyValueRow label="Organism" value={p.organism} mono />
-          <KeyValueRow label="Model type" value={p.model_type} mono />
-          <KeyValueRow
-            label="Total log change"
-            value={`${p.total_log_increase >= 0 ? '+' : ''}${p.total_log_increase.toFixed(2)} log₁₀`}
-            mono
-          />
-          <KeyValueRow
-            label="Is multi-step"
-            value={p.is_multi_step ? `Yes (${p.steps.length} steps)` : 'No (single step)'}
-            mono
-          />
-          <KeyValueRow label="pH" value={p.ph.toFixed(2)} mono />
-          <KeyValueRow label="Water activity" value={p.water_activity.toFixed(2)} mono />
-          {data.overall_confidence != null && (
-            <KeyValueRow
-              label="Overall confidence"
-              value={`${Math.round(data.overall_confidence * 100)}%`}
-              mono
-            />
-          )}
-          <KeyValueRow label="Warnings" value={String(data.warnings.length)} mono />
-          <KeyValueRow label="Provenance entries" value={String(data.provenance.length)} mono />
-        </div>
+      {/* C2 — Step Timeline: always present (single or multi) */}
+      <StepTimeline data={data} perStepWarnings={perStepWarnings} />
 
-        <p
-          style={{
-            marginTop: '24px',
-            fontSize: '12px',
-            color: 'var(--text-subtle)',
-            fontFamily: 'var(--font-mono, monospace)',
-          }}
-        >
-          ↑ Placeholder — full panels (C1–C5) implemented at Checkpoint 3
-        </p>
-      </section>
+      {/* C3 — Prediction Panel: headline numbers + growth curve */}
+      <PredictionPanel data={data} />
 
-      {/* Raw step data — useful for reviewer verification */}
-      {p.is_multi_step && (
-        <section
-          style={{
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            padding: '24px',
-          }}
-        >
-          <h3
-            style={{
-              fontFamily: 'var(--font-serif, Source Serif 4, serif)',
-              fontSize: '16px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              marginBottom: '16px',
-            }}
-          >
-            Step predictions ({p.steps.length} steps)
-          </h3>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: '13px',
-              color: 'var(--text-muted)',
-            }}
-          >
-            {p.step_predictions.map((sp) => (
-              <div
-                key={sp.step_order}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--surface-muted)',
-                  borderRadius: '4px',
-                  border: '1px solid var(--border)',
-                }}
-              >
-                Step {sp.step_order}: {sp.temperature_celsius}°C · {sp.duration_minutes} min ·{' '}
-                μ_max {sp.mu_max.toFixed(4)} · Δlog{' '}
-                {sp.log_increase >= 0 ? '+' : ''}
-                {sp.log_increase.toFixed(4)}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* C4 — Provenance Panel: per-field grounding breakdown */}
+      <ProvenancePanel data={data} />
+
+      {/* C5 — Warnings Strip: omitted entirely when no warnings */}
+      <WarningsStrip data={data} warningStepMap={warningStepMap} />
     </div>
-  );
-}
-
-function KeyValueRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <>
-      <dt
-        style={{
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-sans, Inter, sans-serif)',
-          fontSize: '13px',
-        }}
-      >
-        {label}
-      </dt>
-      <dd
-        style={{
-          color: 'var(--text)',
-          fontFamily: mono
-            ? 'var(--font-mono, JetBrains Mono, monospace)'
-            : 'var(--font-sans, Inter, sans-serif)',
-          fontSize: '14px',
-          margin: 0,
-        }}
-      >
-        {value}
-      </dd>
-    </>
   );
 }
 
@@ -436,7 +297,7 @@ export function ResultLayout({
 
     case 'success':
       return data?.prediction ? (
-        <SuccessPlaceholder data={data} headingRef={headingRef} />
+        <SuccessState data={data} headingRef={headingRef} />
       ) : null;
   }
 }

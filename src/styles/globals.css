@@ -100,6 +100,14 @@ body {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
+/* Responsive: two-column grids collapse at < 1024 px (§7.11) */
+@media (max-width: 1023px) {
+  .c1-grid,
+  .c3-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
