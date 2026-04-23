@@ -83,6 +83,13 @@ export default function App() {
 
         {/* Region A — Header (§8.2) */}
         <header className="h-16 flex items-center" aria-label="Site header">
+          <img
+            src="/logo.png"
+            alt={strings.header.logoAlt}
+            width={100}
+            height={32}
+            className="h-8 w-auto mr-3"
+          />
           <span
             className="font-serif text-2xl font-medium"
             style={{ color: 'var(--text)' }}

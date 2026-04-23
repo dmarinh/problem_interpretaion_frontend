@@ -2,6 +2,7 @@ export const strings = {
   header: {
     productName: 'Problem Translator',
     descriptor: 'Natural-language food safety queries, grounded in predictive microbiology.',
+    logoAlt: 'Foodigit logo',
   },
   query: {
     heading: 'Your scenario',

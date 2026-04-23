@@ -1309,10 +1309,11 @@ Background: --background.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│  Problem Translator   |   [One-line descriptor]                   │
+│  [Foodigit logo]  Problem Translator   |   [One-line descriptor]  │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
+- **Foodigit logo:** `public/logo.png` referenced as `/logo.png` (served from Vite's public root). Rendered at 32 px tall, width auto-scaled to preserve the native 880×282 aspect ratio (~100 px wide). 12 px right margin before the product name. `alt="Foodigit logo"` — attributes the computational food research centre that builds the application. Explicit `width={100} height={32}` attributes reserve layout space and prevent CLS. No import; URL reference only.
 - **Product name:** *"Problem Translator"* — display serif, 24 px, medium weight, `--text`.
 - **Vertical divider:** 1 px, 24 px tall, `--border-strong`, centred vertically, 16 px horizontal margin on each side.
 - **Descriptor:** sans, 14 px, regular, `--text-muted`. Copy: *"Natural-language food safety queries, grounded in predictive microbiology."*
@@ -1831,6 +1832,7 @@ All user-facing strings in the UI, centralised here so they can be revised witho
 |---|---|
 | `header.productName` | Problem Translator |
 | `header.descriptor` | Natural-language food safety queries, grounded in predictive microbiology. |
+| `header.logoAlt` | Foodigit logo |
 | `query.heading` | Your scenario |
 | `query.placeholder` | Describe a food safety scenario in your own words… |
 | `query.loadExample` | Load example |
