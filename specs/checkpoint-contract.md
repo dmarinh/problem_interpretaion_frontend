@@ -30,7 +30,7 @@ This document tells Claude Code how to pace the implementation of the Problem Tr
 
 ### Must be complete
 
-- Vite + React 18 + TypeScript project initialised with `pnpm`, Node version pinned via `.nvmrc` (≥ 20)
+- Vite + React 18 + TypeScript project initialised with `npm`, Node version pinned via `.nvmrc` (≥ 20)
 - TypeScript configured per §10.7: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`
 - ESLint + Prettier configured per §10.7
 - Tailwind CSS configured, reading from CSS variables defined in `styles/globals.css`
@@ -72,9 +72,9 @@ A short markdown report containing:
 
 ### Reviewer checklist
 
-- `pnpm install && pnpm dev` runs without errors
-- `pnpm build` succeeds
-- `pnpm lint` and `tsc --noEmit` pass clean
+- `npm install && npm run dev` runs without errors
+- `npm run build` succeeds
+- `npm run lint` and `npm run typecheck` pass clean
 - The blank page renders with correct background, header typography, and footer treatment — visually matches the design tokens in §7.3 and the typography in §7.4
 - Both env vars work: app boots with defaults, app boots with `VITE_CACHE_MODE=session`, app fails clearly when `VITE_API_BASE_URL` is missing
 - Schema tests pass; client error tests pass

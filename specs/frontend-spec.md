@@ -155,7 +155,7 @@ The detailed visual approach (piecewise growth curve, step timeline, how warning
 | Date/time | Native `Intl` + small utilities | No `date-fns` / `dayjs` needed for v1. |
 | Testing | **Vitest** + **React Testing Library** (unit), **Playwright** (e2e, deferred) | Vitest integrates natively with Vite. Playwright optional until a CI need exists. |
 | Linting / formatting | **ESLint** + **Prettier** | Standard config; no custom rules unless required. |
-| Package manager | **pnpm** | Faster than npm, stricter than yarn. Not a religious choice — npm is acceptable if preferred. |
+| Package manager | **npm** | Standard Node package manager. pnpm is acceptable if preferred — the spec originally noted npm as an acceptable alternative, and the project switched to npm at Checkpoint 1. |
 | Node version | **≥ 20 LTS** | Pinned via `.nvmrc`. |
 
 Things deliberately **not** included: Redux / Zustand / Jotai, Storybook, Axios (native `fetch` suffices), Styled Components / Emotion, Framer Motion (Tailwind transitions are enough for v1; revisit if a specific motion need appears), any CSS-in-JS runtime, Next.js, Remix.
@@ -442,6 +442,16 @@ Flattened to show what the frontend consumes. Sourced directly from the Pydantic
   error: string | null               // populated when success=false
 }
 ```
+
+**Authoritative response examples:** three real backend responses are committed as JSON fixtures under `src/features/translation/api/__fixtures__/`. These are the ground truth for schema tests — do not reconstruct fixtures from the type definition above, as that is circular. The fixture files are:
+
+| File | Scenario | Notes |
+|---|---|---|
+| `single-step-growth.json` | Ground beef patty, 15 °C, 45 min (B1-style) | `is_multi_step: false`, `doubling_time_hours` populated, provenance entries with `value: "N/A"` |
+| `multi-step-growth.json` | Chicken counter (22 °C, 2 h) → fridge (5 °C, 6 h) | `is_multi_step: true`, `temperature_celsius` is first-step only, `duration_minutes` is total, warning with `field: null` |
+| `thermal-inactivation.json` | Chicken nuggets, 68 °C, 8 min (C2) | `model_type: "thermal_inactivation"`, negative `mu_max` and `total_log_increase`, `doubling_time_hours: null`, multiple global warnings |
+
+When the backend schema changes, update these fixture files with new real responses and re-run `npm test`.
 
 ### 4.4 Validation — single source of truth
 
@@ -2396,7 +2406,7 @@ No polyfills in v1. The stack targets ES2022.
 | User input sanitisation | React escapes text by default; no `dangerouslySetInnerHTML` anywhere |
 | URL parameter handling | Decoded value treated as untrusted text. Rendered in textarea and echoed in result area — never evaluated, interpolated into HTML, or used as a URL |
 | API response handling | Validated via Zod at the boundary. Never interpolated into HTML. `notes` field contents (which may include citation tags like `[CDC-2011-T3]`) rendered as text — citation tags detected via regex and styled as text, not as links |
-| Third-party dependencies | Locked via `pnpm-lock.yaml`. No auto-updating loaders. |
+| Third-party dependencies | Locked via `package-lock.json`. No auto-updating loaders. |
 | Environment variables | Only `VITE_API_BASE_URL` and `VITE_CACHE_MODE` are exposed to the client bundle. No secrets anywhere in the frontend. |
 | External requests | None. No analytics, no telemetry, no CDN-fetched fonts (§7.14). Only request made by the frontend is to `VITE_API_BASE_URL/api/v1/translate`. |
 | CORS | Backend sets `allow_origins=["*"]` — flagged in §3.7 for production hardening, not a v1 blocker |
@@ -2487,13 +2497,13 @@ The architecture choices in §3 are the primary maintainability levers. This sub
 
 **Build:**
 
-- `pnpm build` produces static assets in `dist/`
+- `npm run build` produces static assets in `dist/`
 - Build must succeed with zero TypeScript errors and zero ESLint errors
 - Build must succeed with `--mode production` and `--mode development`
 
 **Deployment (v1):**
 
-- **None automated.** The demo is run locally via `pnpm dev` against a local backend.
+- **None automated.** The demo is run locally via `npm run dev` against a local backend.
 - Ad-hoc deployment to a static host (Vercel, Netlify, GitHub Pages, or a Centre-internal host) is feasible from the `dist/` folder but not part of v1 scope.
 
 **Deployment (future — noted so the architecture accommodates it):**
