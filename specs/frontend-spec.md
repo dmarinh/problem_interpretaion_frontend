@@ -44,7 +44,7 @@ Decisions throughout this spec favour the long-term goal where the two conflict,
 2. **Visually distinctive and professional**, in the lineage of scientific and auditable interfaces (Linear, Observable, Bloomberg Terminal, regulatory dashboards) — not generic chat-LLM aesthetics. Distinctiveness comes from information architecture and visual identity, not from inventing new interaction patterns.
 3. **Production-ready foundation**: modern stack, typed end-to-end, modular, scalable. Architecture accommodates future additions — a result-interpretation layer, clarification loops for low-confidence extractions, authentication and user history, multi-pathogen analysis, comparative "what-if" queries — without requiring a rewrite.
 4. **Single-screen, frictionless demo flow**: query in, result out, no navigation, no setup, no login. Reusable for external audiences (advisory board, conference, external collaborators) without changes.
-5. **Honest representation of uncertainty**: confidence scores, provenance sources, transformations, defaults, warnings, and bias corrections are visible without overwhelming the primary answer.
+5. **Honest representation of uncertainty**: confidence scores, provenance sources, transformations, defaults, and warnings are visible without overwhelming the primary answer.
 6. **First-class multi-step support**: the backend extracts and predicts multi-step time-temperature profiles from a single natural-language query. The UI must render these faithfully — showing each leg of the scenario, its per-step growth contribution, and the total outcome. Single-step queries are treated as the trivial case of the same display (one step).
 
 ### 1.3 Non-goals (v1)
@@ -92,7 +92,7 @@ The Problem Translation Module targets three end-user categories (per the projec
 
 ### 2.3 Primary use scenarios
 
-**Scenario 1 — live demo (primary):** the presenter opens the app, picks an example query from a persona group (or types one), submits, and walks the audience through the result panel — pointing out the original-query-to-grounded-parameters mapping, the per-field provenance and confidence, the warnings and bias corrections, and the final ComBase prediction.
+**Scenario 1 — live demo (primary):** the presenter opens the app, picks an example query from a persona group (or types one), submits, and walks the audience through the result panel — pointing out the original-query-to-grounded-parameters mapping, the per-field provenance and confidence, the defaults imputed and warnings, and the final ComBase prediction.
 
 **Scenario 2 — independent exploration:** a team member or viewer without narration types or picks a query, reads the result, and examines provenance to understand how each value was determined.
 
@@ -112,7 +112,7 @@ Queries are quoted verbatim from `sensitivity_analysis_queries.md`.
 | B1 | Inspector | *"During a routine inspection of a poultry distribution truck, I found the refrigeration unit had failed. The driver says it broke down about two hours ago. The truck thermometer reads 12°C now. The load is fresh chicken portions."* | Explicit temperature and duration, no pathogen mentioned (RAG inference for chicken → Salmonella). |
 | B2 | Inspector | *"At a restaurant inspection, the chicken soup on the hot-holding line measured 48°C. The cook says it's been on the line since the start of lunch service, roughly two and a half hours. The soup was boiled before service."* | Explicit temperature in danger zone, vague duration ("roughly"), no pathogen. Demonstrates conservative duration margin. |
 | B7 | Inspector | *"I found several large frozen turkey breasts thawing on the counter. The kitchen staff said they were taken out of the freezer 'first thing this morning' — it's now mid-afternoon. The surface temperature reads 18°C but the core is still frozen."* | Explicit temperature, fully inferred duration. Demonstrates duration interpretation rule and confidence calibration. |
-| C1 | Industry QA | *"The refrigeration chamber for our turkey storage broke down overnight. When we came in this morning, the temperature was reading 13°C. We think it failed sometime during the night — maybe around 2 AM. The turkey portions have been there since yesterday afternoon. Can we still use them?"* | Conflicting temporal cues, optimistic-bias scenario. Demonstrates conservative bias correction. |
+| C1 | Industry QA | *"The refrigeration chamber for our turkey storage broke down overnight. When we came in this morning, the temperature was reading 13°C. We think it failed sometime during the night — maybe around 2 AM. The turkey portions have been there since yesterday afternoon. Can we still use them?"* | Conflicting temporal cues, optimistic-bias scenario. Demonstrates conservative defaults applied for missing parameters. |
 | **C2** | Industry QA | *"One of our oven lines had a temperature drop during a production run of breaded chicken nuggets. The oven thermocouples show the product core temp only reached 68°C instead of our target 74°C. The nuggets were in the oven for the normal time of 8 minutes. Do we need to discard the batch?"* | **Thermal inactivation scenario** — exercises the model-type-aware bias direction. Safety-critical: shows the system recognises an inactivation problem and applies bias *downward* (conservative for kill, not growth). |
 | **C3** | Industry QA | *"We need to validate our cooling process for cooked bone-in hams. After the smokehouse, the hams are shower-cooled then placed in the blast chiller. It takes about 4 hours to go from 54°C to 27°C, and then another 8 hours to go from 27°C to 4°C. Does this meet the FSIS cooling requirements?"* | **Multi-step cooling** (two explicit legs with explicit temperatures and durations). Clearest multi-step demo in the library. Regulatory context makes the "why this matters" obvious to non-experts. |
 
@@ -372,12 +372,14 @@ This section specifies how the frontend talks to the backend: the endpoint, the 
 ```ts
 {
   query: string          // 1–2000 characters, required
+  verbose: true          // always sent — enables the structured audit trail (§4.3 audit block)
   // model_type: omitted in v1 (see §1.3 non-goals)
 }
 ```
 
 - Validation at the input component: reject empty or whitespace-only queries before submit. Show `2000 − current.length` counter when the user is within 200 characters of the limit, not before.
 - No trimming or normalisation of the query string beyond removing leading/trailing whitespace. The user's words are sent to the backend verbatim (and echoed back in `original_query`).
+- `verbose: true` is hard-coded — the audit trail is core content for this application, not an optional detail. There is no user-facing toggle. See §11.1 for the rationale.
 
 ### 4.3 Response — canonical shape
 
@@ -454,16 +456,133 @@ Flattened to show what the frontend consumes. Sourced directly from the Pydantic
 
 When the backend schema changes, update these fixture files with new real responses and re-run `npm test`.
 
+**Verbose audit extension (present when `verbose: true` is sent):** the response gains a top-level `audit` field. When present, C4 and C5 render from `audit` data rather than from the flat `provenance[]` and `warnings[]` arrays. The schema treats `audit` as optional so non-verbose responses remain parseable.
+
+```ts
+// Top-level audit block — present when verbose=true is sent.
+audit?: {
+
+  // Per-field breakdown for every field reaching the execution payload.
+  // Keys: "organism", "ph", "water_activity", "temperature_celsius",
+  // "duration_minutes". For multi-step scenarios, step-scoped keys like
+  // "temperature_celsius_step_1", "duration_minutes_step_1", etc. appear
+  // alongside or instead of the top-level scalar keys.
+  fields: Record<string, {
+    source: string   // "user_explicit" | "rag_retrieval" | "conservative_default"
+                     // permissive: z.string() per §4.4
+                     // NOTE: USER_EXPLICIT now also covers user-supplied ranges (e.g.
+                     // "10–15°C"); the range/point distinction lives in parsed_range
+                     // and the standardization block, not in the source tier.
+
+    extraction?: {   // present when source ≠ "user_explicit" with no extraction info
+      method: string
+      raw_match: string
+      parsed_range?: number[]  // e.g. [5.0, 6.2] for a range extraction
+    }
+
+    standardization?: {  // present when a standardisation rule was applied
+      rule: string          // e.g. "range_bound_selection"
+      direction: string     // "upper" or "lower"
+      reason: string        // plain-English string for end users
+      before_value: [number, number] | number | string  // original range (usually [min, max])
+      after_value: number   // the bound the standardization picked
+    }
+
+    // range_pending is a backend-internal flag: true means StandardizationService has
+    // not yet resolved a bound. Must be false or absent on every completed response.
+    // A dev-mode assertion fires if it arrives as true (indicates backend regression).
+    range_pending?: boolean
+
+    retrieval?: {    // present only when source === "rag_retrieval"
+      query: string  // the exact string sent to the vector store
+      top_match: {
+        doc_id: string
+        chunk_id: string
+        retrieved_text: string   // verbatim chunk — may be long; truncate for display
+        embedding_score: number  // cosine similarity 0..1 — the ONLY numeric grounding signal
+        source_ids: string[]     // e.g. ["FDA-PH-2007", "IFT-2003-T31"]
+        full_citations: Record<string, string>  // source_id → full bibliographic string
+      }
+      runners_up: Array<{
+        doc_id: string
+        embedding_score: number
+        content: string  // short preview excerpt
+      }>
+    }
+  }>
+
+  // Deduplicated list of retrieval operations. A single retrieval may supply
+  // values for multiple fields (e.g. both ph and water_activity come from one
+  // bread_white document query). The retrievals list reflects operations, not
+  // values — multiple fields may reference the same entry.
+  retrievals: Array<{
+    query: string
+    top_match: {
+      doc_id: string
+      chunk_id: string
+      retrieved_text: string
+      embedding_score: number
+      source_ids: string[]
+      full_citations: Record<string, string>
+    }
+    runners_up: Array<{
+      doc_id: string
+      embedding_score: number
+      content: string
+    }>
+  }>
+
+  // ComBase model that was selected to run this prediction.
+  combase_model: {
+    organism: string       // same as prediction.organism
+    model_type: string     // same as prediction.model_type
+    model_id: number
+    selection_reason: string
+    valid_ranges: Record<string, { min: number; max: number }>  // per-parameter
+    coefficients_str: string  // long semicolon-separated string; display truncated
+  }
+
+  // Audit category lists. EMPTY LIST is information, not absence — the UI must
+  // render "(none applied)" for every empty category, not omit the row.
+  // bias_corrections was removed from the backend in the 2026-04-28 cleanup.
+  // Empty categories now emit truly empty arrays; the "(none applied)" sentinel is gone.
+  // range_clamps and warnings are string arrays.
+  // defaults_imputed is now a structured list of DefaultImputedInfo objects.
+  // Live backend confirmed 2026-04-28 via zarblax fixture.
+  range_clamps:     string[]
+  defaults_imputed: Array<{
+    field_name:    string         // e.g. "ph", "water_activity", "organism"
+    default_value: number | string  // organism → string; numeric fields → number
+    reason:        string         // human-readable explanation
+  }>
+  warnings:         string[]
+
+  // System provenance — version and store hashes for cross-checking.
+  // Individual fields may be null when a manifest is missing.
+  system: {
+    ptm_version: string
+    combase_model_table_hash: string | null
+    rag_store_hash: string | null
+    rag_ingested_at: string | null   // ISO 8601
+    source_csv_audit_date: string | null  // ISO 8601
+  }
+}
+```
+
+**Schema caution — verify against live backend:** the exact audit field names and nesting cannot be confirmed while the backend is unavailable. Before Phase C implementation, capture a real `verbose=true` response with `curl -X POST http://localhost:8000/api/v1/translate -d '{"query":"...","verbose":true}'` and commit it as a fourth fixture (`verbose-growth.json`). If the shape differs from the description above, amend this section and the Zod schema before writing component code.
+
 ### 4.4 Validation — single source of truth
 
 All responses pass through a Zod schema before reaching components. The schema lives in `features/translation/api/schema.ts` and all TypeScript types are inferred from it via `z.infer<>`. No hand-written TS types that could drift from the Zod schema.
 
 Design principles for the schema:
 
-- **Permissive on enum-like string fields.** `status`, `organism`, `model_type`, `source`, and `warning.type` are typed as `z.string()` rather than `z.enum([...])`. Reason: the backend controls the canonical values, and an unknown `organism` string (e.g. a newly added pathogen) must not cause the UI to blow up at parse time. Components that *display* these values render them as-is (with light formatting — see §4.5); components that *branch* on them (e.g. warnings grouping) handle unknown values by falling through to a default bucket.
+- **Permissive on enum-like string fields.** `status`, `organism`, `model_type`, `source`, `warning.type`, and `audit.fields[].source` are typed as `z.string()` rather than `z.enum([...])`. Reason: the backend controls the canonical values, and an unknown `organism` string (e.g. a newly added pathogen) must not cause the UI to blow up at parse time. Components that *display* these values render them as-is (with light formatting — see §4.5); components that *branch* on them (e.g. warnings grouping, source tier badge colour) handle unknown values by falling through to a default bucket.
 - **Strict on structural fields.** Numbers are `z.number()`, booleans are `z.boolean()`, arrays have typed elements. Nulls are explicit (`z.number().nullable()`), not optional (`z.number().optional()`), because the backend reliably populates these fields with `null` rather than omitting them.
 - **Confidence ranges not clamped.** The schema accepts any finite number; downstream display logic clamps to `[0, 1]` for rendering. We do not reject a technically-out-of-range confidence at the parse layer.
-- **Datetimes as strings.** `created_at` and `completed_at` are `z.string()`, not coerced to `Date`. The frontend does not currently display timestamps, and coercing now adds complexity for no benefit.
+- **Datetimes as strings.** `created_at` and `completed_at` are `z.string()`, not coerced to `Date`. The same applies to `audit.system.rag_ingested_at` and `audit.system.source_csv_audit_date`.
+- **`audit` is optional at the schema level.** `z.object({...}).optional()`. Reason: non-verbose responses remain parseable, and a backend that does not yet return `audit` should not cause a parse failure. Components that rely on `audit` gate on its presence — if absent, they fall back to the existing `provenance[]`/`warnings[]` rendering. In practice, `verbose: true` is always sent (§4.2), so `audit` should always be present in production responses.
+- **`audit.fields` keys are unknown at schema time.** Use `z.record(z.string(), FieldAuditSchema)` — a Zod record — rather than a fixed-key object. The exact field key naming (e.g. whether multi-step uses `"temperature_celsius_step_1"` or a nested structure) must be confirmed from a real verbose response before finalising this schema.
 
 ### 4.5 Display-layer formatting rules
 
@@ -474,14 +593,25 @@ The API returns several fields in machine form. Humanising them is a presentatio
 | `prediction.organism` | `"STAPHYLOCOCCUS_AUREUS"` | `"Staphylococcus aureus"` | Lowercase + title-case first word + italicise the full binomial (scientific convention). Unknown → render as-is. |
 | `prediction.model_type` | `"growth"` / `"thermal_inactivation"` | `"Growth"` / `"Thermal inactivation"` | Sentence case, underscores → spaces. |
 | `prediction.engine` | `"combase_local"` | `"ComBase (local)"` | Hardcoded mapping for the small known set; unknown → as-is. |
-| `source` (provenance) | `"rag_retrieval"` / `"user_explicit"` / `"user_inferred"` / `"default"` | `"Retrieved (RAG)"` / `"From your query"` / `"Inferred"` / `"Default"` | User-facing labels chosen for clarity, not strict fidelity to backend enum. |
-| `warning.type` | `"bias_correction"` / `"range_clamp"` / `"warning"` | Icon + label: `"Correction applied"` / `"Value clamped"` / `"Note"` | Affects visual treatment — see §8. |
+| `source` (provenance) | `"rag_retrieval"` / `"user_explicit"` / `"user_inferred"` / `"default"` | `"Retrieved (RAG)"` / `"From your query"` / `"Inferred from rule"` / `"Default"` | User-facing labels chosen for clarity, not strict fidelity to backend enum. `user_inferred` renamed from `"Inferred"` to `"Inferred from rule"` to distinguish grounding-phase inference from standardization. |
+| STANDARDIZATION column label | `standardization.rule` / `standardization.direction` | `"Range bound (upper)"` / `"Range bound (lower)"` / `"Range bound"` / `"—"` | `formatStdLabel(rule, direction)` in `format.ts`. `rule = "range_bound_selection"` + direction decides upper/lower label; unknown rule or absent block → `"—"`. |
+| `warning.type` | `"range_clamp"` / `"warning"` (legacy: `"bias_correction"`) | Icon + label: `"Value clamped"` / `"Note"` (legacy: `"Correction applied"`) | Affects visual treatment — see §8. `bias_correction` type no longer emitted by backend but handled in fallback rendering for old responses. |
+| `DefaultImputedInfo.field_name` | `"ph"` / `"water_activity"` / `"organism"` / … | `formatFieldName(field_name)` → `"pH"` / `"Water activity"` / `"Organism"` / … | Use `formatFieldName` — same rule as provenance table column. |
+| `DefaultImputedInfo.default_value` | `7` (number) / `0.99` (number) / `"SALMONELLA"` (string) | `formatImputedValue(field_name, default_value)` → `"7"` / `"0.99"` / `"Salmonella"` | Strings routed through `formatOrganism`; `temperature_celsius` gets `formatTemperature`; other numbers as `String(value)`. |
 | `confidence` | `0.6551502585...` | `"66%"` | Single integer percentage. |
 | `mu_max` | `1.2344246610...` | `"1.23 /h"` | 2 decimal places, unit suffix. |
 | `doubling_time_hours` | `0.5615143657...` | `"34 min"` or `"1.2 h"` | < 1 h → minutes; ≥ 1 h → hours with 1 decimal. |
 | `total_log_increase` | `0.6907397610...` | `"+0.69 log₁₀"` | Signed (thermal inactivation can be negative). 2 decimal places. |
 | `step.duration_minutes` | `225` | `"3 h 45 min"` or `"45 min"` | < 60 → minutes only; ≥ 60 → h + min. |
 | `temperature_celsius` | `28` | `"28 °C"` | No decimals unless the raw value is non-integer. |
+| `source` (audit field tier) | `"conservative_default"` | `"System default"` | Added to SOURCE_MAP; displayed in SourceBadge with a new `--text-subtle`-coloured left stripe. Unknown values passed through. |
+| `embedding_score` | `0.7930418...` | `"0.793"` | 3 decimal places, mono, tabular. Label: `"Similarity"`. Never relabelled as "confidence". |
+| `extraction.conservative` | `true` / `false` | `"yes"` / `"no"` | Boolean fields in audit disclosures render as `"yes"` / `"no"`, not `"true"` / `"false"`. Applies to `conservative` in rule_match and embedding_fallback INTERPRETATION rows. |
+| ISO datetime (audit system) | `"2026-04-22T16:28:39.114473"` | `"2026-04-22 16:28 UTC"` | Format as `YYYY-MM-DD HH:MM UTC`. Used in C6 system strip only. |
+| Hash / digest (audit system) | `"a1b2c3d4e5f6..."` | `"a1b2c3d4…"` | First 8 characters followed by ellipsis, mono, `--text-subtle`. Null → `"—"` (em-dash). |
+| `retrieved_text` | long verbatim chunk | Truncated to 200 characters with `"…"` | Full text is visible in the inline expanded detail row. Never shown untruncated in a table cell. |
+| `coefficients_str` | `"a=1.23;b=0.45;..."` | First 80 characters with `"…"` | Full string is available in the C6 model detail expansion. |
+| `valid_ranges` min/max | `{ min: 7.5, max: 48.0 }` | `"7.5–48.0"` | 1 decimal place each, separated by an en-dash, mono. |
 
 All formatters live in a single module (`features/translation/utils/format.ts`) so the rules are auditable in one place.
 
@@ -1119,15 +1249,52 @@ Cross-cutting UI patterns referenced repeatedly in Section 8.
 
 **Source badge** — used in C4 (provenance source column), optionally elsewhere.
 
-- Small pill with the humanised source label (§4.5: "Retrieved (RAG)", "From your query", "Inferred", "Default")
-- Neutral surface with a coloured left stripe (4 px) — colour distinguishes source category
+- Small pill with the humanised source label (§4.5: "Retrieved (RAG)", "From your query", "Inferred from rule", "Default", "System default")
+- Neutral surface with a coloured left stripe (4 px) — colour distinguishes source category:
+  - `rag_retrieval` → `--accent`
+  - `user_explicit` → `--confidence-high`
+  - `user_inferred` → `--confidence-medium`
+  - `conservative_default` → `--confidence-low` (orange/amber token)
+  - `default` → `--text-subtle`
+  - unknown → `--text-subtle`
 - Mono font, 12 px
-- Not a link in v1 (no linked sources yet)
+- Not a link — the badge is a label, not a navigational affordance
 
-**Citation tag** — for text like `[CDC-2011-T3]` that appears in `provenance[].notes`.
+**Citation tag** — for `[SOURCE-ID]` references appearing in `provenance[].notes` and in `audit.fields[].retrieval.top_match.source_ids`.
 
 - Rendered in mono, `--text-subtle`, slightly smaller than body
-- No hyperlink in v1 — deferred until a source-reference lookup table is wired in
+- When `audit.fields[field].retrieval.top_match.full_citations` contains an entry for the source ID, the tag is rendered as a `<button>` (the `CitationButton` pattern, see below) that reveals the full citation on click
+- When no matching entry exists in `full_citations`, the tag is rendered as inert styled text (original behaviour)
+- Both states must be keyboard-reachable: the button variant via Tab + Enter/Space; the inert variant is in the reading order as styled text
+
+**CitationButton** — new primitive for full-citation disclosure.
+
+- A `<button>` styled as a citation tag (mono, `--text-subtle`, slightly smaller than body, no underline by default)
+- On click (or Enter/Space): toggles an inline disclosure immediately below the button, within the table cell
+- Disclosure shows the full bibliographic string from `full_citations[sourceId]`, in sans 13 px, `--text-muted`, wrapping text, indented 16 px from the left
+- A second click collapses it
+- `aria-expanded` set correctly; disclosure has `role="region"` with a label
+- No third-party popover library — pure React state toggle is sufficient
+- When multiple source IDs appear for one retrieval, each renders its own CitationButton independently — they do not share state
+
+**AuditCategoryStatus** — compact status indicator for one audit category row in C6.
+
+- A two-element row: category label (sans 13 px, `--text-muted`) + status value
+- Status value when list is empty: the text "(none applied)" in `--text-subtle`, italic
+- Status value when list has entries: count in mono + an abbreviated first description (truncated to 60 chars with `…`), styled `--text`
+- Full list is rendered below the summary row when the category has entries — items as indented rows with the description text and field name (if present) in mono
+
+**FieldAuditDisclosure** — per-field expandable row in C4.
+
+- Each field row in the C4 audit table has a `<button>` chevron toggle (lucide `ChevronDown`/`ChevronUp`, 14 px) in a rightmost column
+- On expand: reveals an inline sub-panel spanning the full table width, pushed below the field row
+- Sub-panel sections (only shown when data is present):
+  1. **Extraction** — method label + `raw_match` in mono + `parsed_range` if present
+  2. **Standardisation** — the `description` string (plain English) as the primary text; below in a smaller key-value style: `rule`, `direction`, before→after values in mono
+  3. **Retrieval** — only for `rag_retrieval` fields; shows query string, `retrieved_text` (truncated per §4.5) with a "Show full text" toggle for the complete chunk, `embedding_score` (3 decimals, labelled "Similarity"), then the CitationButton list for all source IDs in `source_ids`
+  4. **Runner-up matches** — top 3 runner-ups with `doc_id` and `embedding_score` in a compact mono list, collapsed behind a "Show alternatives" toggle
+- Each section has a small `SubHeading` label
+- Keyboard: Tab reaches the chevron button; Enter/Space toggles; focus moves into the disclosure panel on open
 
 **Key-value row** — used in C1 (right side), C3 (supporting stats), C4, anywhere a labelled scalar appears.
 
@@ -1532,6 +1699,60 @@ Gap between panels: 24 px.
 
 Detailed specifications per panel below.
 
+### 8.5.4 Pipeline strip
+
+**Purpose:** A single-row navigable strip placed between "Your scenario" and C1. Two roles: (a) educating users about what the backend does at each stage, (b) providing one-glance navigation to where each stage's output lives — with count indicators showing where the system did real work and warning markers flagging safety-relevant events.
+
+**Component:** `features/translation/components/PipelineStrip.tsx`
+
+**Placement:** First element inside the success-state result area, before C1. Does **not** render in empty, loading, or error states. Belongs to the result area — driven by the response object, not the query form.
+
+**Visual weight:** Thin metadata band. Not a primary panel. No border, no chrome, no heading.
+
+**Layout:** Five stage labels, left-to-right, with `›` separators. Mono font throughout.
+
+```
+Intent › Extraction (5) › Grounding (2) › Standardization (2) › Execution
+```
+
+With warning markers (example): `Intent › Extraction (5) › Grounding (3 ⚠) › Standardization (4 ⚠) › Execution (⚠)`
+
+Each stage is a `<button>`. Clicking scrolls to the destination panel and briefly highlights its border via CSS animation (~800 ms fade). Multiple stages may share the same destination.
+
+**Stage → destination panel mapping:**
+
+| Stage | Destination | Panel DOM id |
+|---|---|---|
+| Intent | C1 — How the scenario was understood | `result-c1` |
+| Extraction | C1 — How the scenario was understood | `result-c1` |
+| Grounding | C4 — Provenance of grounded values | `result-c4` |
+| Standardization | C4 — Provenance of grounded values | `result-c4` |
+| Execution | C3 — Prediction | `result-c3` |
+
+**Count indicators** (mono, `--text-subtle`, parenthesised; only when > 0):
+
+| Stage | Count source |
+|---|---|
+| Intent | Not rendered |
+| Extraction | `provenance.length` |
+| Grounding | Count of `provenance[]` with `source === 'rag_retrieval'` or `'conservative_default'` |
+| Standardization | Count of `audit.field_audit` entries where `standardization != null` (backend's StandardizationService populates this block for every range that was narrowed to a bound) |
+| Execution | Not rendered |
+
+**Warning markers** (`⚠`, `--warning`; only when category has real items beyond the "(none applied)" sentinel):
+
+| Stage | Fires when |
+|---|---|
+| Grounding | `audit.audit.defaults_imputed.length > 0` |
+| Standardization | `audit.audit.range_clamps.length > 0` |
+| Execution | `audit.audit.warnings.length > 0` |
+
+Empty arrays are honest empty — no sentinel filtering needed. Intent and Extraction never carry warning markers. Fallback (no `audit` block): infer from `response.warnings[]` by `type`. `bias_corrections` was removed from the backend — Standardization ⚠ now fires only on `range_clamps`.
+
+**Visual treatment:** mono, `--text-muted` labels, `--text-subtle` counts/separators, `--warning` ⚠; hover underline fades in 120 ms; click triggers 800 ms CSS outline highlight on destination panel. No coloured stages, no active-stage tracking.
+
+**Derivation:** `derivePipelineStatus(data)` in `features/translation/utils/pipelineStrip.ts` — pure function, unit-tested with three fixtures per §9.12.
+
 ### 8.6 C1 — Translation Panel
 
 **Purpose (§5.6):** "your words ↔ system's parameters".
@@ -1696,92 +1917,141 @@ If a segment is narrow (< 100 px after proportional layout), labels stack vertic
 
 ### 8.9 C4 — Provenance Panel
 
-**Purpose (§5.6):** *"where did each number come from, and how sure are we?"*
+**Purpose (§5.6):** *"where did each number come from?"*
 
-**Layout:** full-width table.
+**Data source:** `audit.fields` when `audit` is present (verbose response); falls back to `response.provenance[]` otherwise. Confidence numbers are NOT shown — the source tier (categorical) is the auditability signal. No `ConfidenceIndicator` in this panel.
+
+**Layout:** full-width audit table with per-row inline expansion.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Provenance of grounded values                                           │
-│  ──────────────────────────────                                          │
-│                                                                          │
-│  FIELD        VALUE    SOURCE              CONFIDENCE   NOTES            │
-│  ─────        ─────    ──────              ──────────   ─────            │
-│  pH           6.7      Retrieved (RAG)     66%  ████░   Range 6.5–6.7;   │
-│                                                         upper bound used │
-│  Organism     S. aureus  Retrieved (RAG)   77%  █████   [CDC-2011-T3]    │
-│                                                                          │
-│  ─────                                                                    │
-│  Overall confidence   61%  ████░                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  Provenance of grounded values                                               │
+│  ──────────────────────────────                                              │
+│                                                                              │
+│  FIELD           VALUE    SOURCE              STANDARDIZATION      DETAIL                │
+│  ─────           ─────    ──────              ───────────────      ──────                │
+│  pH              6.2      Retrieved (RAG)     Range bound (upper)  range 5.0–6.2 → … ▼  │
+│  ├─ (expanded)                                                                           │
+│  │  Extraction: method=regex  raw_match="5.0 to 6.2"  parsed_range=[5.0, 6.2]          │
+│  │  Standardisation: rule=range_bound_selection  direction=upper                        │
+│  │    before=[5.0, 6.2]  after=6.2  reason="Range narrowed to upper bound…"            │
+│  │  Retrieval query: "slice of white bread pH water activity properties"                │
+│  │  Top match: food_properties:bread_white   Similarity 0.793                          │
+│  │    Retrieved text: "White bread pH ranges from 5.0 to 6.2…" [+full]                │
+│  │  Citations: [FDA-PH-2007] ▼  [IFT-2003-T31] ▼                                      │
+│  └───                                                                                    │
+│  Water activity  0.97     Retrieved (RAG)     Range bound (upper)  range 0.94–0.97→… ▼ │
+│  Temperature     25.0 °C  Inferred from rule  —                    Standard assum… ▼    │
+│  ├─ (expanded)                                                                           │
+│  │  INTERPRETATION                                                                       │
+│  │    Method            rule_match                                                       │
+│  │    Matched pattern   "room temperature"                                               │
+│  │    Conservative      yes                                                              │
+│  │    Notes             Standard assumption; actual range 20-25°C                       │
+│  └───                                                                                    │
+│  Organism        —        From your query     —                                          │
+│  Duration        240 min  From your query     —                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Panel header:** serif H1 "Provenance of grounded values". H2 subtitle (optional): sans 12 px `--text-subtle` — *"Only fields that required grounding are shown."*
+**Panel header:** serif H1 "Provenance of grounded values". Subtitle: sans 12 px `--text-subtle` — *"How each parameter was determined. Expand a row for extraction and retrieval details."*
 
 **Table structure:**
-- 5 columns: **Field**, **Value**, **Source**, **Confidence**, **Notes**
-- Column widths (approx.): 140 / 160 / 180 / 180 / flex
+- 5 columns: **Field**, **Value**, **Source**, **Standardization**, **Detail**
+- Column widths (approx.): 150 / 130 / 170 / 160 / flex
 - Header row: sans 12 px uppercase letter-spaced `--text-subtle`, 1 px `--border` rule below
-- Body rows: sans 14 px; numbers and citations in mono
+- Body rows: sans 14 px; numbers in mono
 - Row padding: 12 px vertical, 0 horizontal (columns handle gutters)
-- Alternating row backgrounds: no. Rows separated by 1 px `--border` horizontal rules instead (cleaner, more document-like)
+- Alternating row backgrounds: no. Rows separated by 1 px `--border` horizontal rules
 
 **Cell content rules:**
-- **Field:** humanised field name in sans, e.g. *"pH"*, *"Organism"*, *"Water activity"*
-- **Value:** mono. If raw value is the literal string `"N/A"` (§4.7), render as an em-dash (`—`) in `--text-subtle`
-- **Source:** source badge per §7.7
-- **Confidence:** percentage in mono + bar indicator, aligned in a sub-row with the percentage first
-- **Notes:** sans 13 px, `--text-muted`; citation tags (regex `/\[[A-Z]+-\d+.*?\]/`) rendered as citation tags per §7.7
+- **Field:** humanised field name in sans (from `formatFieldName()`)
+- **Value:** mono. For `audit.fields` data: the resolved value from the prediction object, formatted per §4.5. For fallback `provenance[]` data: the `value` string (em-dash if `"N/A"`). For multi-step scenarios: group field rows under a "Step N" `SubHeading` row to separate per-step entries from shared fields.
+- **Source:** source badge per §7.7, reflecting the source tier from `audit.fields[field].source`
+- **Standardization:** compact label derived via `formatStdLabel(rule, direction)` per §4.5. Shows `"Range bound (upper)"`, `"Range bound (lower)"`, or `"—"` when no standardization block is present. Mono 12 px `--text` when populated; sans 12 px `--text-subtle` for `"—"`.
+- **Detail:** derived from `deriveDetailNote()`:
+  1. Standardization block present → `"range {before} → {bound} {after} ({model_type} direction)"` truncated to 80 chars
+  2. Extraction block with `parsed_range` but no standardization → `"range {min}–{max}"` (factual; bound choice not shown here — see expansion)
+  3. Provenance notes present and not the stale `"range extracted, awaiting standardization"` placeholder → notes text
+  4. Otherwise empty. Followed by a `ChevronDown` toggle `<button>` if any expansion data is available.
 
-**Footer row (separated by a 1 px `--border-strong` rule, 12 px padding):**
-- "Overall confidence" label, sans 14 px
-- Percentage in mono, bar indicator — same pattern as per-field confidence
+**Inline expansion — Standardisation section:** when `standardization` is present, renders structured rows: Rule, Direction, Before, After, Reason. The `reason` field is the plain-English explanation from the backend and is rendered verbatim. When `standardization` is null, the Standardisation section is omitted from the disclosure entirely.
 
-**Empty provenance list:** if `response.provenance` is empty (possible when all values were user-explicit), replace the table with a single line: *"All values were taken directly from your query. No grounding was required."* in sans 14 px `--text-muted`, then the overall-confidence footer row.
+**Inline expansion — Interpretation section (user_inferred fields):** when `source === "user_inferred"`, an INTERPRETATION sub-heading is shown first in the disclosure. The rows rendered depend on `extraction.method`:
 
-**Responsive:** at widths < 1024 px the Notes column drops below each row (becomes a second line), and the table renders as labelled rows instead of columns.
+- **`method = "rule_match"`:** Method, Matched pattern (quoted verbatim string, e.g. `"counter"`), Conservative (`"yes"` / `"no"` per §4.5), Notes.
+- **`method = "embedding_fallback"`:** Method, Canonical phrase (quoted verbatim string), Similarity (3 dp, via `formatEmbeddingScore`), Conservative (`"yes"` / `"no"`), Notes.
+- **Fallback (extraction null or other method):** single `Notes` row with the verbatim provenance note text.
 
-### 8.10 C5 — Warnings Strip
+Raw match and Parsed range are NOT rendered in the INTERPRETATION block — they belong to the EXTRACTION block for ranged RAG values. The EXTRACTION block (Method, Raw match, Parsed range) is suppressed for `user_inferred` fields entirely; those fields render only INTERPRETATION.
 
-**Purpose (§5.6):** *"what did the system change or flag?"*
+**Inline expansion (FieldAuditDisclosure):** per §7.7. Chevron toggle appears in the Detail column when the field has any of: extraction with method `rule_match` or `embedding_fallback`, extraction with raw_match or parsed_range, standardization, retrieval data, or `source === "user_inferred"` with a provenance note. Fields with `source: "user_explicit"` and no extraction data have no expansion (chevron omitted, no empty disclosure).
 
-**Layout:** full-width list, grouped by warning type.
+**Shared retrievals note:** if `audit.retrievals` contains an entry that supplies data for multiple fields (e.g., both pH and water activity from one bread document query), the expansion panels for both fields display the same retrieval text, embedding score, and citations. The duplication is intentional — each field's drill-down is self-contained. A note *"(from shared retrieval with [other field name])"* appears at the top of the retrieval section to provide context without hiding information.
+
+**Empty provenance (fallback mode only):** if `response.provenance` is empty and `audit` is absent, replace the table with: *"All values were taken directly from your query. No grounding was required."* in sans 14 px `--text-muted`.
+
+**No overall confidence footer.** Overall confidence is removed from the UI — the categorical source tiers across all fields convey the same information honestly. The panel ends after the last field row.
+
+**Responsive:** at widths < 1024 px the Detail column drops below each row (second line), and the inline expansion opens below that second line.
+
+### 8.10 C5 — Safety Flags
+
+**Purpose:** *"what was checked and changed?"* The panel answers both positive and negative — an all-clear on defaults or warnings is as auditable as their presence.
+
+**Data source:** `audit.{range_clamps, defaults_imputed, warnings}` when `audit` is present. Falls back to `response.warnings[]` (grouped by `type`) when `audit` is absent. `bias_corrections` was removed from the backend (2026-04-28); the field no longer exists in the response.
+
+**Always rendered.** The panel is NEVER omitted, even when all three categories are empty. An all-clear result is information — it tells the regulator that the system checked for these conditions and found nothing. The panel heading and three category rows are always present; only the row body varies.
+
+**Layout:** full-width, three fixed categories.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│  Corrections and notes                                             │
-│  ─────────────────────                                             │
+│  Safety flags                                                      │
+│  ─────────────                                                     │
 │                                                                    │
-│  CORRECTIONS APPLIED                                               │
-│  ─────────────────────                                             │
-│  ⚙  water_activity    No water activity specified. Using           │
-│                       conservative high default (0.99) which       │
-│                       maximises predicted growth.                  │
+│  RANGE CLAMPS                                                      │
+│  ─────────────                                                     │
+│  (none applied)                                                    │
 │                                                                    │
-│  NOTES                                                             │
-│  ─────                                                             │
-│  ℹ  (attached to step 3 — see timeline)                           │
-│     Temperature 4.0 °C outside valid range [7.5, 30.0]            │
+│  DEFAULTS IMPUTED                                                  │
+│  ─────────────────                                                 │
+│  ℹ  ph    No pH specified. Using conservative neutral default…     │
+│                                                                    │
+│  WARNINGS                                                          │
+│  ─────────                                                         │
+│  ⚠  Temperature 4.0 °C outside valid range [7.5, 30.0]           │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-**Panel header:** serif H1 "Corrections and notes".
+**Panel header:** serif H1 "Safety flags".
 
-**Groups** (rendered in this order, each with its own sub-heading; groups with no entries are omitted):
-1. **Corrections applied** (`type: "bias_correction"`)
-2. **Values clamped** (`type: "range_clamp"`)
-3. **Notes** (`type: "warning"`)
+**Three fixed categories** (always rendered in this order, regardless of content):
+1. **Range clamps** — `audit.range_clamps[]` (string array; "(none applied)" sentinel when empty)
+2. **Defaults imputed** — `audit.defaults_imputed[]` (structured `DefaultImputed` list; empty array when none)
+3. **Warnings** — `audit.warnings[]` (string array; "(none applied)" sentinel when empty)
 
 Sub-heading style: sans 12 px uppercase letter-spaced `--text-subtle`, 1 px `--border` rule below.
 
-**Warning row layout:**
-- Icon (16 px lucide, coloured per §7.7): `Settings2` for corrections, `AlertCircle` for clamps, `Info` for notes
-- Field name in mono 13 px, `--text-muted`, 120 px wide column (or blank if `field` is null and the warning is not step-correlated)
-- If the warning is step-correlated per the heuristic (§4.7, §5.8): the field column shows *"(attached to step N — see timeline)"* in `--text-subtle`, and the warning is also rendered inline in C2. It appears in both places intentionally — the step-level surface for narrative context, the C5 list for completeness.
-- Message in sans 14 px, `--text`, flex-fills remaining width
+**When a category list is empty:** render the text "(none applied)" in `--text-subtle`, italic, 13 px. No icon. No row separators.
+
+**When a category list has entries:** render one row per entry.
+
+**Entry row layout (range clamps and warnings — string lists):**
+- Icon (16 px lucide): `ArrowLeftRight` for range clamps, `AlertCircle` for warnings
+- Field column: blank (the string descriptions are self-describing)
+- Description text in sans 14 px, `--text`, flex-fills remaining width
 - Rows separated by 12 px padding and 1 px `--border` rules
 
-**Empty state:** if `response.warnings` is empty, the panel is omitted entirely — no empty panel, no "no warnings" message. Panel C4's footer ("Overall confidence") still provides closure to the screen.
+**Entry row layout (defaults imputed — structured list):**
+- Icon (16 px): `Info` in `--text-muted`
+- Primary line: `formatFieldName(field_name)` = `formatImputedValue(field_name, default_value)` in mono 13 px `--text`, tabular-nums
+- Secondary line (below, 3 px margin-top): `reason` text in sans 13 px `--text-subtle`, line-height 1.45
+- Allows regulators to scan "which fields and to what values?" at a glance, with reasoning as supporting detail
+
+**Fallback rendering (when `audit` is absent):** use `response.warnings[]` grouped by `type` field. Map `"range_clamp"` → Range clamps, all remaining types → Warnings. Defaults imputed category shows "(none applied)" since the legacy schema has no `defaults_imputed` list. The panel is still always rendered in this mode. Legacy `"bias_correction"` type entries fall through to the Warnings bucket.
+
+**Legacy `response.warnings[]` compatibility:** the fallback mode uses the same three-category structure but icon and field handling map from `{type, message, field}` instead of `{description, field}`. `message` maps to the description text position.
 
 ### 8.11 Region D — Footer
 
@@ -1866,26 +2136,119 @@ All user-facing strings in the UI, centralised here so they can be revised witho
 | `c4.colField` | FIELD |
 | `c4.colValue` | VALUE |
 | `c4.colSource` | SOURCE |
-| `c4.colConfidence` | CONFIDENCE |
-| `c4.colNotes` | NOTES |
-| `c4.overallConfidence` | Overall confidence |
+| `c4.colStandardization` | STANDARDIZATION |
+| `c4.colDetail` | DETAIL |
+| `c4.colNotes` | NOTES (fallback mode only) |
+| `c4.extractionHeading` | EXTRACTION |
+| `c4.standardisationHeading` | STANDARDISATION |
+| `c4.interpretationHeading` | INTERPRETATION |
+| `c4.retrievalHeading` | RETRIEVAL |
 | `c4.allUserExplicit` | All values were taken directly from your query. No grounding was required. |
 | `c5.heading` | Corrections and notes |
 | `c5.groupCorrections` | CORRECTIONS APPLIED |
 | `c5.groupClamps` | VALUES CLAMPED |
 | `c5.groupNotes` | NOTES |
 | `c5.stepAttached` | (attached to step {N} — see timeline) |
+| `c5.heading` | Safety flags |
+| `c5.groupRangeClamps` | RANGE CLAMPS |
+| `c5.groupDefaultsImputed` | DEFAULTS IMPUTED |
+| `c5.groupWarnings` | WARNINGS |
+| `c5.noneApplied` | (none applied) |
+| `c6.heading` | ComBase model & audit detail |
+| `c6.modelSubheading` | SELECTED MODEL |
+| `c6.rangesSubheading` | VALID PARAMETER RANGES |
+| `c6.coefficientsLabel` | Coefficients |
+| `c6.showFullCoefficients` | Show full string |
+| `c6.systemSubheading` | SYSTEM PROVENANCE |
+| `c6.showSystem` | System details |
+| `c6.nullHash` | — |
 | `footer.docs` | Documentation |
 | `footer.source` | Source |
+
+### 8.15 C6 — ComBase Model & Audit Detail Panel
+
+**Purpose:** *"which model was selected, on what basis, and what system versions produced this result?"*
+
+This panel provides the deepest layer of the audit trail — the model selection rationale, valid operating ranges, and system provenance. It is rendered for all verbose responses and is **expanded by default**, because model selection is a substantive auditability claim (not merely housekeeping).
+
+**Position:** immediately after C5, before the footer.
+
+**Layout:** single-column, two subsections separated by a `PanelRule`, with a third collapsible subsection.
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  ComBase model & audit detail                                      │
+│  ─────────────────────────────                                     │
+│                                                                    │
+│  SELECTED MODEL                                                    │
+│  ──────────────                                                    │
+│  Organism         Bacillus cereus                                  │
+│  Model type       Growth                                           │
+│  Model ID         1                                                │
+│  Selection reason Closest BACILLUS_CEREUS growth model available…  │
+│                                                                    │
+│  VALID PARAMETER RANGES                                            │
+│  ─────────────────────                                             │
+│  Temperature      10.0–48.0 °C                                    │
+│  pH               4.5–8.5                                          │
+│  Water activity   0.93–0.995                                       │
+│                                                                    │
+│  Coefficients     a=1.23;b=0.45;… [Show full string ▼]            │
+│                                                                    │
+│  ─────────────────────────────────────────────────────────────────│
+│  ▼ SYSTEM PROVENANCE                                              │
+│    PTM version           0.1.0                                     │
+│    ComBase table hash    a1b2c3d4…                                 │
+│    RAG store hash        e5f6g7h8…                                 │
+│    RAG ingested          2026-04-20 14:00 UTC                     │
+│    Source CSV date       2026-04-18 00:00 UTC                     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**Panel header:** serif H1 "ComBase model & audit detail".
+
+**SELECTED MODEL subsection:**
+- `SubHeading` "SELECTED MODEL"
+- Key-value rows (per §7.7):
+  - Organism — formatted via `formatOrganism()`
+  - Model type — formatted via `formatModelType()`
+  - Model ID — mono integer
+  - Selection reason — sans 13 px, `--text-muted`, wrapping text (not mono — it is a sentence, not a datum)
+
+**VALID PARAMETER RANGES subsection:**
+- `SubHeading` "VALID PARAMETER RANGES"
+- One key-value row per `valid_ranges` entry: field name (via `formatFieldName()`) + formatted range (§4.5: `"min–max"` with 1 decimal each)
+- Rows in deterministic order: temperature, ph, water_activity, then any additional keys alphabetically
+
+**Coefficients row:**
+- Label "Coefficients" in sans `--text-muted`
+- Value: first 80 characters of `coefficients_str` followed by `"…"` in mono `--text-subtle`
+- A `<button>` "Show full string" after the truncated value toggles an inline expansion showing the complete string in a `<code>` block (`--font-mono`, 11 px, `--text-subtle`, `word-break: break-all`)
+
+**`PanelRule` divider** between the model section and the system provenance section.
+
+**SYSTEM PROVENANCE subsection (collapsible):**
+- A `<button>` row with lucide `ChevronDown`/`ChevronUp` (14 px) and the text "SYSTEM PROVENANCE" in `SubHeading` style — clicking toggles the subsection
+- Default: **collapsed** (unlike the model section which is always visible). Rationale: system hashes and timestamps are cross-checking details, not narrative content.
+- When expanded: key-value rows:
+  - PTM version — mono
+  - ComBase table hash — formatted per §4.5 (first 8 chars + `…`, or `—` if null); full hash on hover (title attribute)
+  - RAG store hash — same treatment
+  - RAG ingested — formatted datetime per §4.5; `—` if null
+  - Source CSV date — formatted datetime per §4.5; `—` if null
+- `aria-expanded` set correctly on the toggle button; the subsection has `id` and the button has `aria-controls` pointing to it
+
+**Not rendered:** the C6 panel is omitted entirely (not just collapsed) when `audit` is absent from the response. A null guard in `ResultLayout` handles this.
 
 ### 8.14 Implementation handoff notes
 
 For Claude Code when implementing Section 8:
 
-- Each of C1–C5 is its own component in `features/translation/components/`, receiving typed props and rendering nothing but its own panel.
-- `ResultLayout` composes them and handles the empty/loading/error/success branching.
+- Each of C1–C6 is its own component in `features/translation/components/`, receiving typed props and rendering nothing but its own panel.
+- `ResultLayout` composes them and handles the empty/loading/error/success branching. C6 is only rendered when `data.audit` is present.
 - The growth curve component is in `features/translation/components/GrowthCurve.tsx` and consumes `prediction.step_predictions` plus the derivation utility in `features/translation/utils/growthCurve.ts` (§5.9).
 - The heuristic for step-scoped warning correlation (§4.7) lives in `features/translation/utils/warnings.ts`. It takes the `warnings` array and the `steps` array and returns a `{ global: Warning[], perStep: Map<stepOrder, Warning[]> }` structure. The rule: if `warning.message` matches `/Temperature ([\d.]+) ?°?C/` and the extracted value equals any `step.temperature_celsius` (within 0.1 °C tolerance), attach to that step. Fallback: global.
+- The updated C5 always renders — `WarningsStrip.tsx` (now renamed `AuditChecks.tsx`) must not gate on non-empty arrays. Rename the file and component at implementation time; update `ResultLayout` import accordingly.
 - All copy strings from §8.13 live in `features/translation/data/strings.ts` (a single typed object).
 - The example queries list from §2.4 and the one-line summaries from §8.4 live in `features/translation/data/exampleQueries.ts`.
 
@@ -2564,6 +2927,12 @@ Items appearing as "deferred", "out of scope", "future", or "stretch goal" earli
 | "/" keyboard shortcut to focus textarea | §8.12 | Nice-to-have; not v1 |
 | Print styles | §8.12 | No stated need |
 | Wide-screen expansion beyond 1280 px | §7.11 | Intentional — keeps the feel of a scientific document |
+| Per-field audit timeline correlation across steps in C2 | §8.7, §8.9 | Step provenance is grouped in C4 under step headers; C2 retains only the step-scoped warning indicators (no per-field audit overlay on the timeline segments) |
+| Audit log export (PDF / JSON download) | — | No stated need for v1; data is already copyable as text |
+| Verbose mode toggle (user-facing) | §4.2 | `verbose: true` is always sent; a toggle would complicate the schema and create two rendering modes to maintain |
+| Runner-up retrieval expansion by default | §7.7 | Runners-up are available behind a secondary toggle within the FieldAuditDisclosure; default collapsed to avoid overwhelming the table |
+| Intent reasoning display | §4.3 | The `audit.intent` block (if returned by the backend) is not rendered in v1 — the system already surfaces what was understood via C1's parameters column |
+| Confidence numbers or derived gauges of any kind | — | Permanently excluded: the system has no confidence model; introducing any numeric confidence indicator, derived bar, or probabilistic gauge is a non-goal, not a deferral |
 
 ### 11.2 Landing zones for future features
 

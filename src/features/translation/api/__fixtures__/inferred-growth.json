@@ -1,0 +1,148 @@
+{
+  "success": true,
+  "session_id": "127d8979-20db-445d-8138-9e434ede34fb",
+  "status": "completed",
+  "created_at": "2026-04-28T16:07:29.391035",
+  "completed_at": "2026-04-28T16:07:35.602163",
+  "original_query": "I left raw chicken on the counter overnight. What Salmonella growth should I expect?",
+  "prediction": {
+    "organism": "SALMONELLA",
+    "model_type": "growth",
+    "engine": "combase_local",
+    "temperature_celsius": 25.0,
+    "duration_minutes": 480.0,
+    "ph": 6.4,
+    "water_activity": 0.99,
+    "mu_max": 1.0021871884146056,
+    "doubling_time_hours": 0.6916344457131394,
+    "total_log_increase": 3.481954926100782,
+    "is_multi_step": false,
+    "steps": [
+      { "step_order": 1, "temperature_celsius": 25.0, "duration_minutes": 480.0 }
+    ],
+    "step_predictions": [
+      {
+        "step_order": 1,
+        "temperature_celsius": 25.0,
+        "duration_minutes": 480.0,
+        "mu_max": 1.0021871884146056,
+        "log_increase": 3.481954926100782
+      }
+    ],
+    "growth_description": "Extensive growth: 3.5 log increase (>1000x population)"
+  },
+  "provenance": [
+    { "field": "organism",            "value": "N/A", "source": "user_explicit", "notes": "From: 'Salmonella'" },
+    { "field": "ph",                  "value": "N/A", "source": "rag_retrieval", "notes": "range extracted, awaiting standardization" },
+    { "field": "temperature_celsius", "value": "N/A", "source": "user_inferred",  "notes": "Interpreted as 25.0°C (Standard assumption; actual range 20-25°C)" },
+    { "field": "duration_minutes",    "value": "N/A", "source": "user_inferred",  "notes": "Interpreted as 480.0 min (Overnight typically 6-10 hours; using 8)" }
+  ],
+  "warnings": [],
+  "error": null,
+  "audit": {
+    "field_audit": {
+      "organism": {
+        "final_value": "ss",
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": { "method": "direct", "raw_match": null, "parsed_range": null },
+        "standardization": null
+      },
+      "ph": {
+        "final_value": 6.2,
+        "source": "rag_retrieval",
+        "retrieval": {
+          "query": "raw chicken pH water activity properties",
+          "top_match": {
+            "doc_id": "food_properties_24",
+            "embedding_score": 0.7042,
+            "rerank_score": null,
+            "retrieved_text": "chicken (poultry): pH range 6.2 to 6.4. Raw chicken [IFT-2003-T33]",
+            "source_ids": ["IFT-2003-T33"],
+            "full_citations": {
+              "IFT-2003-T33": "Institute of Food Technologists (2003). Evaluation and Definition of Potentially Hazardous Foods. Comprehensive Reviews in Food Science and Food Safety 2(s1):1-108. Table 3-3 - pH ranges of foods. DOI: 10.1111/j.1541-4337.2003.tb00052.x"
+            }
+          },
+          "runners_up": [
+            {
+              "doc_id": "food_properties_26",
+              "content_preview": "fresh poultry (poultry): water activity 0.99 to 1.0. All fresh poultry [IFT-2003-T31]",
+              "embedding_score": 0.6507,
+              "rerank_score": null
+            },
+            {
+              "doc_id": "food_properties_207",
+              "content_preview": "watercress (vegetable): pH range 5.88 to 6.18. Fresh watercress [FDA-PH-2007]",
+              "embedding_score": 0.5663,
+              "rerank_score": null
+            }
+          ]
+        },
+        "extraction": { "method": "regex+llm", "raw_match": "6.2 to 6.4", "parsed_range": [6.2, 6.4] },
+        "standardization": null
+      },
+      "temperature_celsius": {
+        "final_value": 25.0,
+        "source": "user_inferred",
+        "retrieval": null,
+        "extraction": {
+          "method": "rule_match",
+          "raw_match": null,
+          "parsed_range": null,
+          "matched_pattern": "counter",
+          "conservative": true,
+          "notes": "Standard assumption; actual range 20-25°C",
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": null
+      },
+      "duration_minutes": {
+        "final_value": 480.0,
+        "source": "user_inferred",
+        "retrieval": null,
+        "extraction": {
+          "method": "rule_match",
+          "raw_match": null,
+          "parsed_range": null,
+          "matched_pattern": "overnight",
+          "conservative": false,
+          "notes": "Overnight typically 6-10 hours; using 8",
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": null
+      }
+    },
+    "combase_model": {
+      "organism": "SALMONELLA",
+      "model_type": "growth",
+      "model_id": 1,
+      "coefficients_str": "-11.906;0.3649;1.7832;7.00019;-0.00442;0;0;-0.00458;-0.12539;-62.114;0;0;0;0;0",
+      "valid_ranges": {
+        "temperature_celsius": [7.0, 40.0],
+        "ph": [3.9, 7.4],
+        "water_activity": [0.973, 1.0]
+      },
+      "selection_reason": "LLM inference (implied_model_type field)"
+    },
+    "audit": {
+      "range_clamps": [],
+      "defaults_imputed": [
+        {
+          "field_name": "water_activity",
+          "default_value": 0.99,
+          "reason": "No water activity specified. Using conservative high default (0.99) which maximizes predicted growth."
+        }
+      ],
+      "warnings": []
+    },
+    "system": {
+      "rag_store_hash": "c56160b817bcb5a6",
+      "rag_ingested_at": "2026-04-27T14:33:34.147645+00:00",
+      "source_csv_audit_date": "2026-04-27T14:06:01.613633+00:00",
+      "ptm_version": "817a819",
+      "combase_model_table_hash": "87546d35af5755b1"
+    }
+  }
+}

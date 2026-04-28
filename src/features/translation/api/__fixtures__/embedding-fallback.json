@@ -1,0 +1,197 @@
+{
+  "success": true,
+  "session_id": "a9b8c7d6-e5f4-3210-fedc-ba9876543210",
+  "status": "completed",
+  "created_at": "2026-04-28T17:00:00.000000",
+  "completed_at": "2026-04-28T17:00:05.123456",
+  "original_query": "A slice of bread was kept in a parked car in the sun for 4 hours. Predict Bacillus cereus growth.",
+  "prediction": {
+    "organism": "BACILLUS_CEREUS",
+    "model_type": "growth",
+    "engine": "combase_local",
+    "temperature_celsius": 35.0,
+    "duration_minutes": 240.0,
+    "ph": 6.2,
+    "water_activity": 0.97,
+    "mu_max": 1.1247,
+    "doubling_time_hours": 0.6163,
+    "total_log_increase": 1.8012,
+    "is_multi_step": false,
+    "steps": [
+      { "step_order": 1, "temperature_celsius": 35.0, "duration_minutes": 240.0 }
+    ],
+    "step_predictions": [
+      {
+        "step_order": 1,
+        "temperature_celsius": 35.0,
+        "duration_minutes": 240.0,
+        "mu_max": 1.1247,
+        "log_increase": 1.8012
+      }
+    ],
+    "growth_description": "Significant growth: 1.8 log increase (~63x population)"
+  },
+  "provenance": [
+    { "field": "organism",            "value": "N/A", "source": "user_explicit",  "notes": "From: 'Bacillus cereus'" },
+    { "field": "temperature_celsius", "value": "N/A", "source": "user_inferred",  "notes": "Interpreted as 35.0°C (Parked car in sun; matched via embedding to warm vehicle storage ~35°C)" },
+    { "field": "duration_minutes",    "value": "N/A", "source": "user_explicit",  "notes": "From: '4 hours'" },
+    { "field": "ph",                  "value": "N/A", "source": "rag_retrieval",  "notes": "Range 5.0-6.2 [FDA-PH-2007] [IFT-2003-T31]" },
+    { "field": "water_activity",      "value": "N/A", "source": "rag_retrieval",  "notes": "Range 0.94-0.97 [IFT-2003-T31]" }
+  ],
+  "warnings": [],
+  "error": null,
+  "audit": {
+    "field_audit": {
+      "organism": {
+        "final_value": "bc",
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": {
+          "method": "direct",
+          "raw_match": null,
+          "parsed_range": null,
+          "matched_pattern": null,
+          "conservative": null,
+          "notes": null,
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": null
+      },
+      "temperature_celsius": {
+        "final_value": 35.0,
+        "source": "user_inferred",
+        "retrieval": null,
+        "extraction": {
+          "method": "embedding_fallback",
+          "raw_match": null,
+          "parsed_range": null,
+          "matched_pattern": null,
+          "conservative": true,
+          "notes": "Matched via embedding similarity (score: 0.84)",
+          "similarity": 0.84,
+          "canonical_phrase": "warm vehicle storage"
+        },
+        "standardization": null
+      },
+      "duration_minutes": {
+        "final_value": 240.0,
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": {
+          "method": "direct",
+          "raw_match": null,
+          "parsed_range": null,
+          "matched_pattern": null,
+          "conservative": null,
+          "notes": null,
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": null
+      },
+      "ph": {
+        "final_value": 6.2,
+        "source": "rag_retrieval",
+        "retrieval": {
+          "query": "slice of white bread pH water activity properties",
+          "top_match": {
+            "doc_id": "food_properties_42",
+            "embedding_score": 0.793,
+            "rerank_score": null,
+            "retrieved_text": "White bread pH ranges from 5.0 to 6.2. White sandwich bread [FDA-PH-2007] [IFT-2003-T31]",
+            "source_ids": ["FDA-PH-2007", "IFT-2003-T31"],
+            "full_citations": {
+              "FDA-PH-2007": "U.S. Food and Drug Administration (2007). pH values of various foods. FDA Approximate pH of Foods and Food Products. Updated 2007.",
+              "IFT-2003-T31": "Institute of Food Technologists (2003). Evaluation and Definition of Potentially Hazardous Foods. Comprehensive Reviews in Food Science and Food Safety 2(s1):1-108. Table 3-1."
+            }
+          },
+          "runners_up": [
+            {
+              "doc_id": "food_properties_43",
+              "content_preview": "whole wheat bread: pH range 5.3 to 6.0. Whole grain varieties [IFT-2003-T31]",
+              "embedding_score": 0.741,
+              "rerank_score": null
+            }
+          ]
+        },
+        "extraction": {
+          "method": "regex+llm",
+          "raw_match": "5.0 to 6.2",
+          "parsed_range": [5.0, 6.2],
+          "matched_pattern": null,
+          "conservative": null,
+          "notes": null,
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": {
+          "rule": "range_bound_selection",
+          "direction": "upper",
+          "reason": "Upper bound selected for Bacillus cereus growth model (growth is inhibited at lower pH; upper bound is the conservative choice for growth prediction).",
+          "before_value": [5.0, 6.2],
+          "after_value": 6.2
+        }
+      },
+      "water_activity": {
+        "final_value": 0.97,
+        "source": "rag_retrieval",
+        "retrieval": {
+          "query": "slice of white bread water activity properties",
+          "top_match": {
+            "doc_id": "food_properties_44",
+            "embedding_score": 0.771,
+            "rerank_score": null,
+            "retrieved_text": "White bread water activity 0.94 to 0.97. Standard sliced white bread [IFT-2003-T31]",
+            "source_ids": ["IFT-2003-T31"],
+            "full_citations": {
+              "IFT-2003-T31": "Institute of Food Technologists (2003). Evaluation and Definition of Potentially Hazardous Foods. Comprehensive Reviews in Food Science and Food Safety 2(s1):1-108. Table 3-1."
+            }
+          },
+          "runners_up": []
+        },
+        "extraction": {
+          "method": "regex+llm",
+          "raw_match": "0.94 to 0.97",
+          "parsed_range": [0.94, 0.97],
+          "matched_pattern": null,
+          "conservative": null,
+          "notes": null,
+          "similarity": null,
+          "canonical_phrase": null
+        },
+        "standardization": {
+          "rule": "range_bound_selection",
+          "direction": "upper",
+          "reason": "Upper bound selected for Bacillus cereus growth model (higher water activity supports growth).",
+          "before_value": [0.94, 0.97],
+          "after_value": 0.97
+        }
+      }
+    },
+    "combase_model": {
+      "organism": "BACILLUS_CEREUS",
+      "model_type": "growth",
+      "model_id": 2,
+      "coefficients_str": "-9.412;0.2901;1.6443;6.50012;-0.00381;0;0;-0.00412;-0.11203;-58.771;0;0;0;0;0",
+      "valid_ranges": {
+        "temperature_celsius": [10.0, 48.0],
+        "ph": [4.5, 8.0],
+        "water_activity": [0.92, 1.0]
+      },
+      "selection_reason": "LLM inference (implied_model_type field)"
+    },
+    "audit": {
+      "range_clamps": [],
+      "defaults_imputed": [],
+      "warnings": []
+    },
+    "system": {
+      "rag_store_hash": "c56160b817bcb5a6",
+      "rag_ingested_at": "2026-04-27T14:33:34.147645+00:00",
+      "source_csv_audit_date": "2026-04-27T14:06:01.613633+00:00",
+      "ptm_version": "817a819",
+      "combase_model_table_hash": "87546d35af5755b1"
+    }
+  }
+}

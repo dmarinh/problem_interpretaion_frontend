@@ -71,3 +71,67 @@ Newest entries at the bottom. Do not edit or remove past entries.
 **Lesson:** Assets placed in `public/` are served by Vite at the root URL and must be referenced as `/logo.png` in markup — not imported as ES modules. Importing them would cause Vite to hash and bundle them, losing the stable public URL. Explicit `width` and `height` attributes on `<img>` are needed when the native image is much larger than the rendered size to reserve layout space and prevent CLS (the browser will downscale a 880×282 PNG to 32 px tall without quality loss, but without the attributes it can't allocate space before the image loads). Alt text for a maker's logo that sits beside a product wordmark should name the maker, not repeat the product name — "Foodigit logo" attributes the organisation; "Problem Translator" is already in the adjacent wordmark text.
 **Action:** Future logo or static-asset additions go in `public/` with URL referencing. Always add explicit `width`/`height` attrs when native dimensions differ significantly from rendered size. Write alt text that conveys what the image adds beyond what surrounding text already says.
 **Reference:** §8.2, §8.13, `src/App.tsx`.
+
+## 2026-04-28 — StandardizationService now populates the standardization block; parsed_range fallback removed
+
+**Context:** Backend migrated range-bound selection from GroundingService to StandardizationService, populating `field_audit[].standardization` with a structured block (`rule`, `direction`, `reason`, `before_value`, `after_value`) for every range narrowed to a single value.
+**Lesson:** The prior PipelineStrip workaround (`extraction.parsed_range.length >= 2` as a proxy for standardization events) was correct while the backend left `standardization: null` for ranged values. After the backend migration, the real block is always populated — the fallback overstated the count and masked the migration. The StandardizationSchema field names also changed (`description`→`reason`, `before`→`before_value`, `after`→`after_value`). The `source` enum no longer distinguishes user-supplied ranges from user-supplied point values — that distinction now lives in `parsed_range` and the standardization block.
+**Action:** When the backend populates a structured block, read it directly rather than inferring from adjacent fields. Before writing a proxy heuristic, ask whether the backend will eventually provide the real signal. A new backend-internal field `range_pending: boolean` was added to `FieldAuditSchema`; add a dev-mode assertion that warns if it arrives as `true` (indicates an incomplete backend response). Do not render `range_pending` in the UI.
+**Reference:** `src/features/translation/api/schema.ts` (StandardizationSchema), `src/features/translation/utils/pipelineStrip.ts`, `src/features/translation/components/ProvenancePanel.tsx`, §4.3, §8.5.4, §8.9.
+
+## 2026-04-28 — Backend removed bias_corrections; defaults_imputed became structured
+
+**Context:** Backend conceptual cleanup removed the BiasCorrection phase and renamed the event class to DefaultImputed. The frontend Zod schema broke because `audit.audit.bias_corrections` was required but no longer present.
+
+**Lesson:** `bias_corrections` is completely gone (not optional, not renamed at the same path). `defaults_imputed` changed from a string array (with `"(none applied)"` sentinel) to a structured `DefaultImputed[]` list (may be empty; no sentinel). The `range_clamps` and `warnings` string arrays with their sentinel are unchanged. The `hasRealItems` sentinel-check helper applies only to the string-array categories; `defaults_imputed.length > 0` is the correct empty check for the structured list.
+
+**Action:** When `defaults_imputed` is used as a groundingWarning trigger, compare `.length > 0` not `hasRealItems()`. When rendering `defaults_imputed` entries, read `field_name` and `reason` from the structured object — not a raw string. The old fixture sentinel `["(none applied)"]` for `defaults_imputed` becomes `[]`. Any synthetic test fixture using the audit categories block must omit `bias_corrections` entirely and use `[]` for an empty `defaults_imputed`.
+
+**Reference:** `src/features/translation/api/schema.ts` (DefaultImputedSchema, AuditCategoriesSchema), `src/features/translation/utils/pipelineStrip.ts`, `src/features/translation/components/AuditChecks.tsx`, `src/features/translation/api/__fixtures__/verbose-growth.json`.
+
+## 2026-04-28 — defaults_imputed is still a string array; verify live backend before assuming structured types
+
+**Context:** Syncing the frontend schema after the backend removed bias_corrections and renamed BiasCorrection → DefaultImputed. The task description said defaults_imputed was now a structured object list, but the live backend returned `"Expected object, received string"` errors.
+
+**Lesson:** The backend description stated defaults_imputed would become a structured `DefaultImputed[]` list, but the live backend still returns a string array with the `"(none applied)"` sentinel — the same format as range_clamps and warnings. A live curl before writing schema changes would have caught this immediately. The structured format may arrive in a future backend update.
+
+**Action:** Before changing a schema type from string to structured object (or vice versa), curl the live backend and inspect the actual value. Do not trust task descriptions or spec text alone when the live backend is available. The check costs 30 seconds; a revert cycle costs far more.
+
+**Reference:** `src/features/translation/api/schema.ts` (AuditCategoriesSchema), curl: `curl -X POST "http://localhost:8000/api/v1/translate?verbose=true" -H "Content-Type: application/json" -d '{"query":"..."}'`
+
+## 2026-04-28 — defaults_imputed became structured objects; sentinel pattern retired
+
+**Context:** Follow-up backend update shipped: defaults_imputed changed from a string array (with "(none applied)" sentinel) to a structured DefaultImputedInfo object list, and all three audit categories now emit truly empty arrays instead of sentinels.
+
+**Lesson:** The `hasRealItems` helper that filtered sentinel strings was a backend workaround masquerading as business logic. Once the backend emits honest empty arrays, the helper should be deleted entirely — not preserved for "safety." Leaving it would silently accept sentinel strings from a reverted backend, making the regression invisible. The UI-layer "(none applied)" copy belongs in `strings.ts` and is rendered when `array.length === 0`; it is unrelated to the backend sentinel.
+
+**Action:** When a backend sentinel pattern is retired, delete the filtering helper immediately. UI copy for the empty state is always the frontend's own responsibility — keep it in the strings inventory. For structured list fields (like DefaultImputedInfo), use `formatFieldName` for the `field_name` display and `formatImputedValue` for `default_value` (template is in `format.ts`).
+
+**Reference:** `pipelineStrip.ts` (hasRealItems removed), `AuditChecks.tsx` (DefaultImputedRow added), `format.ts` (formatImputedValue added), `api/__fixtures__/verbose-defaults.json` (zarblax live capture).
+
+## 2026-04-28 — user_inferred field_audit has no structured INTERPRETATION data
+
+**Context:** Adding a STANDARDIZATION column and chevron disclosure for Inferred rows in the Provenance panel. The task description listed rule, pattern, conservative, similarity as expected fields inside `field_audit` for `user_inferred` sources.
+
+**Lesson:** The live backend does not expose structured INTERPRETATION data for `user_inferred` fields. `field_audit.temperature_celsius` for an inferred-temperature query returns `{ source: "user_inferred", extraction: null, standardization: null, retrieval: null }` — no rule, no pattern, no conservative flag. All interpretation context is in the flat `provenance[].notes` string ("Interpreted as 25.0°C (Standard assumption; actual range 20-25°C)"). The Chevron disclosure can only show the notes text; the structured INTERPRETATION block is a backend follow-up.
+
+**Action:** For inferred chevron disclosures, read `provenance[].notes` for the field and render it as plain text under an INTERPRETATION sub-heading. Do not parse the notes string to extract mapped value or rule name — the format is not guaranteed. File the structured INTERPRETATION fields (method, pattern, conservative) as a backend follow-up rather than working around them.
+
+**Reference:** `src/features/translation/api/__fixtures__/inferred-growth.json`, `src/features/translation/components/ProvenancePanel.tsx` (FieldAuditDisclosure, inferredNote prop).
+
+## 2026-04-28 — Backend now provides structured extraction for user_inferred fields (rule_match and embedding_fallback)
+
+**Context:** Updating the INTERPRETATION disclosure in the Provenance panel to surface matched_pattern, conservative, canonical_phrase, and similarity for inferred values.
+**Lesson:** The prior lesson (2026-04-28 "user_inferred field_audit has no structured INTERPRETATION data") is now superseded. The backend populates `field_audit[field].extraction` for `user_inferred` fields with `method: "rule_match"` or `method: "embedding_fallback"`. The `rule_match` shape includes `matched_pattern`, `conservative`, `notes` (and null `similarity`/`canonical_phrase`). The `embedding_fallback` shape includes `canonical_phrase`, `similarity`, `conservative`, `notes` (and null `matched_pattern`). Both have `raw_match: null` and `parsed_range: null` — these fields are for RAG-style extraction and are meaningless here. The EXTRACTION block (Method, Raw match, Parsed range) is suppressed for `user_inferred` source; those fields use INTERPRETATION exclusively. The `inferred-growth.json` fixture was updated from `extraction: null` to reflect the real backend shape. `embedding-fallback.json` was created as a synthetic fixture (not a live capture — live backend should be used to replace it when available).
+**Action:** For `user_inferred` fields: render INTERPRETATION with structured extraction when method is rule_match or embedding_fallback. Never show Raw match or Parsed range rows in INTERPRETATION. Suppress the EXTRACTION block entirely for `user_inferred` source. Boolean `conservative` renders as "yes" / "no". Matched pattern and canonical phrase render quoted to signal verbatim strings.
+**Reference:** `src/features/translation/api/schema.ts` (ExtractionSchema), `src/features/translation/components/ProvenancePanel.tsx` (FieldAuditDisclosure), `src/features/translation/api/__fixtures__/inferred-growth.json`, `src/features/translation/api/__fixtures__/embedding-fallback.json`, §8.9, §4.5.
+
+## 2026-04-28 — RAG retrieval without a standardization block still shows stale provenance note
+
+**Context:** Fixing the "awaiting standardization" placeholder that appears in the DETAIL column for RAG fields that have a parsed_range but no standardization block (e.g., chicken pH: range [6.2, 6.4], final value 6.2, but standardization is null).
+
+**Lesson:** The backend writes `"range extracted, awaiting standardization"` to `transformation_applied` (and propagates to `provenance[].notes`) as a transitional state. For completed responses, this string is always stale — the standardization step has already run. But `standardization` may still be null if the backend chose not to emit a block (e.g. when the lower bound happened to equal the raw extracted value). The frontend must filter this placeholder rather than display it.
+
+**Action:** In `deriveDetailNote()`, check `rawProvenanceNote?.includes('awaiting standardization')` and return null in that case. Additionally, when `extraction.parsed_range` is present but no standardization block exists, derive `"range {min}–{max}"` from the extraction as a minimal but always-accurate DETAIL note. The full bound choice is visible in the disclosure's Extraction section.
+
+**Reference:** `src/features/translation/components/ProvenancePanel.tsx` (deriveDetailNote), `src/features/translation/api/__fixtures__/inferred-growth.json` (ph field: standardization: null, notes: "range extracted, awaiting standardization").
