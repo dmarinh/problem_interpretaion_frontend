@@ -8,7 +8,9 @@ import { TranslationPanel } from './TranslationPanel';
 import { StepTimeline } from './StepTimeline';
 import { PredictionPanel } from './PredictionPanel';
 import { ProvenancePanel } from './ProvenancePanel';
-import { WarningsStrip } from './WarningsStrip';
+import { AuditChecks } from './AuditChecks';
+import { AuditDetailPanel } from './AuditDetailPanel';
+import { PipelineStrip } from './PipelineStrip';
 
 type Status = 'empty' | 'loading' | 'error' | 'success';
 
@@ -224,7 +226,7 @@ function LoadingState({
   );
 }
 
-// ── Success state — five real panels (C1–C5) ──────────────────────────────────
+// ── Success state — six real panels (C1–C6) ───────────────────────────────────
 
 function SuccessState({
   data,
@@ -248,20 +250,32 @@ function SuccessState({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Pipeline strip — navigable stage summary, placed before C1 (§8.5.4) */}
+      <PipelineStrip data={data} />
+
       {/* C1 — Translation Panel: "your words ↔ system's parameters" */}
-      <TranslationPanel data={data} headingRef={headingRef} />
+      <div id="result-c1" data-panel>
+        <TranslationPanel data={data} headingRef={headingRef} />
+      </div>
 
       {/* C2 — Step Timeline: always present (single or multi) */}
       <StepTimeline data={data} perStepWarnings={perStepWarnings} />
 
       {/* C3 — Prediction Panel: headline numbers + growth curve */}
-      <PredictionPanel data={data} />
+      <div id="result-c3" data-panel>
+        <PredictionPanel data={data} />
+      </div>
 
       {/* C4 — Provenance Panel: per-field grounding breakdown */}
-      <ProvenancePanel data={data} />
+      <div id="result-c4" data-panel>
+        <ProvenancePanel data={data} />
+      </div>
 
-      {/* C5 — Warnings Strip: omitted entirely when no warnings */}
-      <WarningsStrip data={data} warningStepMap={warningStepMap} />
+      {/* C5 — Safety Flags: always rendered; "(none applied)" for empty categories */}
+      <AuditChecks data={data} warningStepMap={warningStepMap} />
+
+      {/* C6 — ComBase Model & Audit Detail: rendered only when audit block is present */}
+      <AuditDetailPanel data={data} />
     </div>
   );
 }

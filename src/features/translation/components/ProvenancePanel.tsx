@@ -480,7 +480,7 @@ const toggleButtonStyle: React.CSSProperties = {
 // ── Verbose mode table header ─────────────────────────────────────────────────
 
 // FIELD | VALUE | SOURCE | STANDARDIZATION | DETAIL
-const COL_WIDTHS = ['150px', '130px', '170px', '160px', 'auto']
+const COL_WIDTHS = ['150px', '130px', '200px', '160px', 'auto']
 
 function VerboseTableHeader() {
   const cols = [

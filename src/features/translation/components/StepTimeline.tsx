@@ -273,18 +273,20 @@ export function StepTimeline({ data, perStepWarnings }: Props) {
             {formatDuration(totalDuration)}
           </span>
         </span>
-        <span>
-          {strings.c2.totalLog}{' '}
-          <span
-            style={{
-              fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-              color: isInactivation ? 'var(--inactivation)' : 'var(--growth)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {formatLogIncrease(p.total_log_increase)}
+        {steps.length > 1 && (
+          <span>
+            {strings.c2.totalLog}{' '}
+            <span
+              style={{
+                fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
+                color: isInactivation ? 'var(--inactivation)' : 'var(--growth)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {formatLogIncrease(p.total_log_increase)}
+            </span>
           </span>
-        </span>
+        )}
       </div>
     </PanelChrome>
   )

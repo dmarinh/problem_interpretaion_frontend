@@ -89,6 +89,46 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Pipeline strip — destination-panel highlight (§8.5.4) */
+@keyframes pipeline-highlight-fade {
+  0%, 70% { outline: 2px solid var(--accent); outline-offset: 3px; }
+  100%     { outline: 2px solid transparent;  outline-offset: 3px; }
+}
+
+.pipeline-highlight {
+  animation: pipeline-highlight-fade 800ms ease-out forwards;
+}
+
+/* Scroll offset so the panel header isn't hidden under the page header */
+[data-panel] {
+  scroll-margin-top: 24px;
+}
+
+/* Pipeline stage buttons (§8.5.4) */
+.pipeline-stage-btn {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.pipeline-stage-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 120ms;
+}
+
+.pipeline-stage-btn:hover .pipeline-stage-label {
+  text-decoration-color: var(--text-muted);
+}
+
 /* Skeleton loading shimmer (§7.9, §8.5.2) */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }

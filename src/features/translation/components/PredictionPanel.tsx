@@ -10,7 +10,7 @@ import {
   formatDoublingTime,
   formatDuration,
 } from '../utils/format'
-import { PanelChrome, ConfidenceIndicator, KeyValueRow, PanelRule } from './primitives'
+import { PanelChrome, KeyValueRow, PanelRule } from './primitives'
 import { GrowthCurve } from './GrowthCurve'
 
 type Props = {
@@ -82,30 +82,6 @@ export function PredictionPanel({ data }: Props) {
           >
             <em>{headlineLabel}</em>
           </p>
-
-          {/* Confidence row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '16px',
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'var(--font-sans, Inter, sans-serif)',
-                fontSize: '13px',
-                color: 'var(--text-muted)',
-                flexShrink: 0,
-              }}
-            >
-              {strings.c3.confidence}
-            </span>
-            {data.overall_confidence !== null && (
-              <ConfidenceIndicator value={data.overall_confidence} />
-            )}
-          </div>
 
           <PanelRule />
 

@@ -14,8 +14,7 @@ import {
 } from 'recharts'
 import type { Prediction } from '../api/types'
 import { deriveGrowthCurve } from '../utils/growthCurve'
-import { formatDuration, formatLogIncrease } from '../utils/format'
-import { strings } from '../data/strings'
+import { formatDuration } from '../utils/format'
 
 type Props = {
   prediction: Prediction
@@ -199,35 +198,6 @@ export function GrowthCurve({ prediction }: Props) {
         </ComposedChart>
       </ResponsiveContainer>
 
-      {/* Approximation caveat label (§7.10, §8.8) */}
-      <p
-        style={{
-          fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-          fontSize: '11px',
-          color: TEXT_SUBTLE,
-          textAlign: 'right',
-          marginTop: '4px',
-          lineHeight: 1.4,
-        }}
-      >
-        {strings.c3.curveCaveat}
-      </p>
-
-      {/* Dev-only check: shows curve total in the browser so it's visually verifiable */}
-      {import.meta.env.DEV && (
-        <p
-          style={{
-            fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-            fontSize: '10px',
-            color: TEXT_SUBTLE,
-            textAlign: 'right',
-            marginTop: '2px',
-          }}
-        >
-          curve total: {formatLogIncrease(finalLog)} (backend:{' '}
-          {formatLogIncrease(prediction.total_log_increase)})
-        </p>
-      )}
     </div>
   )
 }
