@@ -1,0 +1,133 @@
+{
+  "success": true,
+  "session_id": "67ff00cc-5ce1-42ff-afce-2af81d9d127f",
+  "status": "completed",
+  "created_at": "2026-04-28T15:01:03.086352",
+  "completed_at": "2026-04-28T15:01:07.661381",
+  "original_query": "I left a zarblax burger at 30C for 3 hours. What Salmonella growth should I expect?",
+  "prediction": {
+    "organism": "SALMONELLA",
+    "model_type": "growth",
+    "engine": "combase_local",
+    "temperature_celsius": 30,
+    "duration_minutes": 180,
+    "ph": 7,
+    "water_activity": 0.99,
+    "mu_max": 1.5037608446228214,
+    "doubling_time_hours": 0.4609424317959302,
+    "total_log_increase": 1.9592251107655938,
+    "is_multi_step": false,
+    "steps": [
+      {
+        "step_order": 1,
+        "temperature_celsius": 30,
+        "duration_minutes": 180
+      }
+    ],
+    "step_predictions": [
+      {
+        "step_order": 1,
+        "temperature_celsius": 30,
+        "duration_minutes": 180,
+        "mu_max": 1.5037608446228214,
+        "log_increase": 1.9592251107655938
+      }
+    ],
+    "growth_description": "Significant growth: 2.0 log increase (~91x population)"
+  },
+  "provenance": [
+    {
+      "field": "organism",
+      "value": "N/A",
+      "source": "user_explicit",
+      "notes": "From: 'Salmonella'"
+    },
+    {
+      "field": "temperature_celsius",
+      "value": "N/A",
+      "source": "user_explicit",
+      "notes": null
+    },
+    {
+      "field": "duration_minutes",
+      "value": "N/A",
+      "source": "user_explicit",
+      "notes": null
+    }
+  ],
+  "warnings": [],
+  "error": null,
+  "audit": {
+    "field_audit": {
+      "organism": {
+        "final_value": "ss",
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": {
+          "method": "direct",
+          "raw_match": null,
+          "parsed_range": null
+        },
+        "standardization": null
+      },
+      "temperature_celsius": {
+        "final_value": 30,
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": null,
+        "standardization": null
+      },
+      "duration_minutes": {
+        "final_value": 180,
+        "source": "user_explicit",
+        "retrieval": null,
+        "extraction": null,
+        "standardization": null
+      }
+    },
+    "combase_model": {
+      "organism": "SALMONELLA",
+      "model_type": "growth",
+      "model_id": 1,
+      "coefficients_str": "-11.906;0.3649;1.7832;7.00019;-0.00442;0;0;-0.00458;-0.12539;-62.114;0;0;0;0;0",
+      "valid_ranges": {
+        "temperature_celsius": [
+          7,
+          40
+        ],
+        "ph": [
+          3.9,
+          7.4
+        ],
+        "water_activity": [
+          0.973,
+          1
+        ]
+      },
+      "selection_reason": "LLM inference (implied_model_type field)"
+    },
+    "audit": {
+      "range_clamps": [],
+      "defaults_imputed": [
+        {
+          "field_name": "ph",
+          "default_value": 7,
+          "reason": "No pH specified. Using neutral default which is near-optimal for pathogen growth (conservative)."
+        },
+        {
+          "field_name": "water_activity",
+          "default_value": 0.99,
+          "reason": "No water activity specified. Using conservative high default (0.99) which maximizes predicted growth."
+        }
+      ],
+      "warnings": []
+    },
+    "system": {
+      "rag_store_hash": "c56160b817bcb5a6",
+      "rag_ingested_at": "2026-04-27T14:33:34.147645+00:00",
+      "source_csv_audit_date": "2026-04-27T14:06:01.613633+00:00",
+      "ptm_version": "817a819",
+      "combase_model_table_hash": "87546d35af5755b1"
+    }
+  }
+}

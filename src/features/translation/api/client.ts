@@ -7,7 +7,7 @@ export async function translateApi(query: string): Promise<TranslationResponse> 
   let response: Response;
 
   try {
-    response = await fetch(`${env.apiBaseUrl}/api/v1/translate`, {
+    response = await fetch(`${env.apiBaseUrl}/api/v1/translate?verbose=true`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
