@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { EXAMPLE_QUERIES, PERSONA_LABELS, PERSONA_ORDER } from '../data/exampleQueries';
-import type { Persona } from '../data/exampleQueries';
+import { ACTIVE_GROUPS, DisplayQuery } from '../data/activeExamples';
 
 type Props = {
   onSelect: (fullText: string) => void;
   onClose: () => void;
 };
 
-// Flat list of queries in display order, matching PERSONA_ORDER.
-const FLAT_QUERIES = PERSONA_ORDER.flatMap((persona) =>
-  EXAMPLE_QUERIES.filter((q) => q.persona === persona),
-);
+const FLAT_QUERIES: DisplayQuery[] = ACTIVE_GROUPS.flatMap((g) => g.queries);
 
 export function ExamplePicker({ onSelect, onClose }: Props) {
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -48,18 +44,12 @@ export function ExamplePicker({ onSelect, onClose }: Props) {
     if (query) onSelect(query.fullText);
   }
 
-  // Build grouped display structure.
+  // Build indexed items per group for keyboard navigation.
   let flatIndex = 0;
-  const groups: Array<{
-    persona: Persona;
-    items: Array<{ query: (typeof FLAT_QUERIES)[number]; index: number }>;
-  }> = PERSONA_ORDER.map((persona) => {
-    const items = EXAMPLE_QUERIES.filter((q) => q.persona === persona).map((query) => ({
-      query,
-      index: flatIndex++,
-    }));
-    return { persona, items };
-  });
+  const groups = ACTIVE_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.queries.map((query) => ({ query, index: flatIndex++ })),
+  }));
 
   return (
     <div
@@ -71,7 +61,7 @@ export function ExamplePicker({ onSelect, onClose }: Props) {
         top: 'calc(100% + 4px)',
         left: 0,
         zIndex: 50,
-        width: '480px',
+        width: '640px',
         maxHeight: '480px',
         overflowY: 'auto',
         backgroundColor: 'var(--surface)',
@@ -80,8 +70,8 @@ export function ExamplePicker({ onSelect, onClose }: Props) {
         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
       }}
     >
-      {groups.map(({ persona, items }) => (
-        <div key={persona}>
+      {groups.map(({ label, items }) => (
+        <div key={label}>
           {/* Group heading */}
           <div
             style={{
@@ -94,7 +84,7 @@ export function ExamplePicker({ onSelect, onClose }: Props) {
               fontWeight: 600,
             }}
           >
-            {PERSONA_LABELS[persona]}
+            {label}
           </div>
           <div
             style={{
@@ -131,32 +121,33 @@ export function ExamplePicker({ onSelect, onClose }: Props) {
                 (e.currentTarget as HTMLElement).style.backgroundColor = '';
               }}
             >
-              {/* Query ID badge */}
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-                  fontSize: '12px',
-                  color: 'var(--text-subtle)',
-                  flexShrink: 0,
-                  width: '24px',
-                }}
-              >
-                {query.id}
-              </span>
-
-              {/* Summary text — truncated */}
-              <span
-                style={{
-                  fontFamily: 'var(--font-sans, Inter, sans-serif)',
-                  fontSize: '14px',
-                  color: 'var(--text)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: '380px',
-                }}
-              >
-                {query.summary}
+              {/* Summary + optional goal */}
+              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-sans, Inter, sans-serif)',
+                    fontSize: '14px',
+                    color: 'var(--text)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {query.summary}
+                </span>
+                {query.goal && (
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-sans, Inter, sans-serif)',
+                      fontSize: '12px',
+                      color: 'var(--text-subtle)',
+                      whiteSpace: 'normal',
+                      lineHeight: '1.4',
+                    }}
+                  >
+                    {query.goal}
+                  </span>
+                )}
               </span>
             </button>
           ))}
