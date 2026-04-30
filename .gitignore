@@ -78,6 +78,9 @@ venv/
 __pycache__/
 *.py[cod]
 
+# Claude Code
+.claude/settings.local.json
+
 # Misc local
 *.bak
 *.tmp
