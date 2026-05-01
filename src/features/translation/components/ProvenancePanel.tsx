@@ -145,7 +145,7 @@ function FieldAuditDisclosure({ fieldName: _fieldName, audit, colCount, sharedRe
 
   if (!hasContent) return null
 
-  const fullCitations = retrieval?.top_match.full_citations ?? {}
+  const fullCitations = retrieval?.top_match?.full_citations ?? {}
 
   return (
     <tr>
@@ -326,75 +326,86 @@ function FieldAuditDisclosure({ fieldName: _fieldName, audit, colCount, sharedRe
                   </span>
                 </div>
 
-                {/* Top match */}
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <span style={labelStyle}>Top match</span>
-                  <span style={monoStyle}>{retrieval.top_match.doc_id}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  <span style={labelStyle}>{strings.c4.similarityLabel}</span>
-                  {/* embedding_score is the ONLY numeric grounding signal — never relabelled as "confidence" */}
-                  <span style={{ ...monoStyle, fontVariantNumeric: 'tabular-nums' }}>
-                    {formatEmbeddingScore(retrieval.top_match.embedding_score)}
-                  </span>
-                </div>
-
-                {/* Retrieved text — truncated by default */}
-                <div>
-                  <span style={{ ...labelStyle, display: 'block', marginBottom: '4px' }}>
-                    Retrieved text
-                  </span>
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-                      fontSize: '11px',
-                      color: 'var(--text-subtle)',
-                      lineHeight: 1.5,
-                      margin: '0 0 4px 0',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {showFullText
-                      ? retrieval.top_match.retrieved_text
-                      : truncateRetrievedText(retrieval.top_match.retrieved_text)}
-                  </p>
-                  {retrieval.top_match.retrieved_text.length > 200 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowFullText((v) => !v)}
-                      style={toggleButtonStyle}
-                    >
-                      {showFullText ? strings.c4.hideFullText : strings.c4.showFullText}
-                    </button>
-                  )}
-                </div>
-
-                {/* Full citations per source_id */}
-                {retrieval.top_match.source_ids.length > 0 && (
-                  <div>
-                    <span style={{ ...labelStyle, display: 'block', marginBottom: '6px' }}>
-                      Citations
-                    </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {retrieval.top_match.source_ids.map((sid) => {
-                        const full = fullCitations[sid]
-                        if (full !== undefined) {
-                          return <CitationButton key={sid} sourceId={sid} fullCitation={full} />
-                        }
-                        return (
-                          <span
-                            key={sid}
-                            style={{
-                              fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
-                              fontSize: '12px',
-                              color: 'var(--text-subtle)',
-                            }}
-                          >
-                            [{sid}]
-                          </span>
-                        )
-                      })}
+                {/* Top match — null when no doc passed the retrieval threshold */}
+                {retrieval.top_match !== null ? (
+                  <>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                      <span style={labelStyle}>Top match</span>
+                      <span style={monoStyle}>{retrieval.top_match.doc_id}</span>
                     </div>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                      <span style={labelStyle}>{strings.c4.similarityLabel}</span>
+                      {/* embedding_score is the ONLY numeric grounding signal — never relabelled as "confidence" */}
+                      <span style={{ ...monoStyle, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatEmbeddingScore(retrieval.top_match.embedding_score)}
+                      </span>
+                    </div>
+
+                    {/* Retrieved text — truncated by default */}
+                    <div>
+                      <span style={{ ...labelStyle, display: 'block', marginBottom: '4px' }}>
+                        Retrieved text
+                      </span>
+                      <p
+                        style={{
+                          fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
+                          fontSize: '11px',
+                          color: 'var(--text-subtle)',
+                          lineHeight: 1.5,
+                          margin: '0 0 4px 0',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {showFullText
+                          ? retrieval.top_match.retrieved_text
+                          : truncateRetrievedText(retrieval.top_match.retrieved_text)}
+                      </p>
+                      {retrieval.top_match.retrieved_text.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowFullText((v) => !v)}
+                          style={toggleButtonStyle}
+                        >
+                          {showFullText ? strings.c4.hideFullText : strings.c4.showFullText}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Full citations per source_id */}
+                    {retrieval.top_match.source_ids.length > 0 && (
+                      <div>
+                        <span style={{ ...labelStyle, display: 'block', marginBottom: '6px' }}>
+                          Citations
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {retrieval.top_match.source_ids.map((sid) => {
+                            const full = fullCitations[sid]
+                            if (full !== undefined) {
+                              return <CitationButton key={sid} sourceId={sid} fullCitation={full} />
+                            }
+                            return (
+                              <span
+                                key={sid}
+                                style={{
+                                  fontFamily: 'var(--font-mono, JetBrains Mono, monospace)',
+                                  fontSize: '12px',
+                                  color: 'var(--text-subtle)',
+                                }}
+                              >
+                                [{sid}]
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    <span style={labelStyle}>Top match</span>
+                    <span style={{ ...monoStyle, color: 'var(--text-subtle)', fontStyle: 'italic' }}>
+                      No document met the retrieval threshold.
+                    </span>
                   </div>
                 )}
 
@@ -710,7 +721,7 @@ function VerboseTable({ data }: VerboseTableProps) {
   const retrievalFieldMap = new Map<string, string[]>()
   for (const fname of allFieldNames) {
     const fa = audit.field_audit[fname]
-    const docId = fa?.retrieval?.top_match.doc_id
+    const docId = fa?.retrieval?.top_match?.doc_id
     if (docId !== undefined) {
       const existing = retrievalFieldMap.get(docId) ?? []
       existing.push(fname)
@@ -754,7 +765,7 @@ function VerboseTable({ data }: VerboseTableProps) {
           {sharedFields.map((fieldName) => {
             const fieldAudit = audit.field_audit[fieldName]
             if (fieldAudit === undefined) return null
-            const docId = fieldAudit.retrieval?.top_match.doc_id
+            const docId = fieldAudit.retrieval?.top_match?.doc_id
             const sharedRetrievalFields = docId !== undefined
               ? (retrievalFieldMap.get(docId) ?? []).filter((f) => f !== fieldName)
               : []
@@ -803,7 +814,7 @@ function VerboseTable({ data }: VerboseTableProps) {
                 {stepFields.map((fieldName) => {
                   const fieldAudit = audit.field_audit[fieldName]
                   if (fieldAudit === undefined) return null
-                  const docId = fieldAudit.retrieval?.top_match.doc_id
+                  const docId = fieldAudit.retrieval?.top_match?.doc_id
                   const sharedRetrievalFields = docId !== undefined
                     ? (retrievalFieldMap.get(docId) ?? []).filter((f) => f !== fieldName)
                     : []

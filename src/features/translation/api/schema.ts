@@ -67,7 +67,8 @@ const RunnerUpSchema = z.object({
 
 const RetrievalBlockSchema = z.object({
   query: z.string(),
-  top_match: RetrievalTopMatchSchema,
+  // nullable: backend sends null when no doc passes the retrieval threshold
+  top_match: RetrievalTopMatchSchema.nullable(),
   runners_up: z.array(RunnerUpSchema),
 });
 

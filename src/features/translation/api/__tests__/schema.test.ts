@@ -166,15 +166,15 @@ describe('TranslationResponseSchema — verbose growth (with audit block)', () =
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
     const phRetrieval = result.data.audit!.field_audit['ph']?.retrieval;
-    expect(phRetrieval?.top_match.embedding_score).toBeTypeOf('number');
-    expect(phRetrieval?.top_match.embedding_score).toBeCloseTo(0.793, 3);
+    expect(phRetrieval?.top_match?.embedding_score).toBeTypeOf('number');
+    expect(phRetrieval?.top_match?.embedding_score).toBeCloseTo(0.793, 3);
   });
 
   it('retrieval top_match has full_citations as a string record', () => {
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
     const phRetrieval = result.data.audit!.field_audit['ph']?.retrieval;
-    const citations = phRetrieval?.top_match.full_citations;
+    const citations = phRetrieval?.top_match?.full_citations;
     expect(citations).toBeDefined();
     expect(typeof citations?.['FDA-PH-2007']).toBe('string');
     expect(typeof citations?.['IFT-2003-T31']).toBe('string');
@@ -184,8 +184,8 @@ describe('TranslationResponseSchema — verbose growth (with audit block)', () =
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
     const phRetrieval = result.data.audit!.field_audit['ph']?.retrieval;
-    expect(phRetrieval?.top_match.source_ids).toContain('FDA-PH-2007');
-    expect(phRetrieval?.top_match.source_ids).toContain('IFT-2003-T31');
+    expect(phRetrieval?.top_match?.source_ids).toContain('FDA-PH-2007');
+    expect(phRetrieval?.top_match?.source_ids).toContain('IFT-2003-T31');
   });
 
   it('retrieval runners_up have embedding_score and content_preview', () => {
@@ -196,6 +196,29 @@ describe('TranslationResponseSchema — verbose growth (with audit block)', () =
     const first = phRetrieval?.runners_up[0];
     expect(first?.embedding_score).toBeTypeOf('number');
     expect(first?.content_preview).toBeTypeOf('string');
+  });
+
+  it('retrieval top_match null parses successfully (no doc met threshold)', () => {
+    const withNullTopMatch = {
+      ...verboseGrowth,
+      audit: {
+        ...verboseGrowth.audit,
+        field_audit: {
+          ph: {
+            final_value: 6.2,
+            source: 'rag_retrieval',
+            retrieval: { query: 'slice of white bread pH', top_match: null, runners_up: [] },
+            extraction: null,
+            standardization: null,
+          },
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(withNullTopMatch);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const phRetrieval = result.data.audit!.field_audit['ph']?.retrieval;
+    expect(phRetrieval?.top_match).toBeNull();
   });
 
   it('combase_model has organism, model_id, valid_ranges, and coefficients_str', () => {

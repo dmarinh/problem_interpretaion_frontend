@@ -135,3 +135,13 @@ Newest entries at the bottom. Do not edit or remove past entries.
 **Action:** In `deriveDetailNote()`, check `rawProvenanceNote?.includes('awaiting standardization')` and return null in that case. Additionally, when `extraction.parsed_range` is present but no standardization block exists, derive `"range {min}–{max}"` from the extraction as a minimal but always-accurate DETAIL note. The full bound choice is visible in the disclosure's Extraction section.
 
 **Reference:** `src/features/translation/components/ProvenancePanel.tsx` (deriveDetailNote), `src/features/translation/api/__fixtures__/inferred-growth.json` (ph field: standardization: null, notes: "range extracted, awaiting standardization").
+
+## 2026-05-01 — retrieval.top_match must be nullable; Zod strips unknown fields silently
+
+**Context:** Backend change to retrieval semantics: `top_match` now means "the doc that supplied final_value" and is null when no doc meets the threshold; two new optional fields (`reranker_top`, `attempted_top`) were added.
+
+**Lesson:** (1) `top_match` was typed as required non-nullable in `RetrievalBlockSchema`. A backend response with `top_match: null` caused the entire `TranslationResponseSchema.safeParse()` to fail — not a graceful fallback, a full parse error surfaced to the user. (2) Zod's default object mode is `strip`, so new optional fields (`reranker_top`, `attempted_top`) are silently dropped without a parse error. Silent drops are invisible in normal operation; only an explicit investigation surfaces them. (3) TypeScript's null-safety caught all five remaining unsafe `top_match.*` accesses after the schema fix — the compiler errors were the complete list of rendering MUSTs, requiring no manual audit.
+
+**Action:** When a backend field that was previously always-present can become null, the schema change is one line (`.nullable()`), but it forces a full TypeScript compile to find every unsafe access. Run typecheck immediately after any `.nullable()` addition and treat the errors as the authoritative list of rendering fixes. For new fields silently dropped by Zod, document them in the investigation report and make a deliberate choice — don't assume absence in the parse output means absence in the wire response.
+
+**Reference:** `src/features/translation/api/schema.ts` (RetrievalBlockSchema), `src/features/translation/components/ProvenancePanel.tsx` (FieldAuditDisclosure, VerboseTable), `src/features/translation/api/__tests__/schema.test.ts` (null top_match test).
