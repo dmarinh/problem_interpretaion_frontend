@@ -87,11 +87,13 @@ const ExtractionSchema = z.object({
 
 const StandardizationSchema = z.object({
   rule: z.string(),
-  direction: z.string(),
+  // null for rules that don't select a bound (range_clamp, default_imputed)
+  direction: z.string().nullable(),
   reason: z.string(),
-  // before_value is an array [min, max] for range_bound_selection; keep permissive
-  before_value: z.union([z.array(z.number()), z.number(), z.string()]),
-  after_value: z.number(),
+  // tuple for range_bound_selection [min, max]; number for range_clamp; string for categorical; null for default_imputed
+  before_value: z.union([z.tuple([z.number(), z.number()]), z.number(), z.string()]).nullable(),
+  // string for categorical fields (e.g. organism "Salmonella"); number for numeric fields
+  after_value: z.union([z.number(), z.string()]),
 });
 
 // Per-field breakdown. source is permissive (z.string()) per §4.4.
@@ -132,12 +134,22 @@ export const DefaultImputedInfoSchema = z.object({
   reason: z.string(),
 });
 
+// Structured object emitted when a value was clamped to model valid range bounds.
+// field_name may include a step suffix "(step N)" for multi-step queries.
+export const RangeClampSchema = z.object({
+  field_name: z.string(),
+  original_value: z.number(),
+  clamped_value: z.number(),
+  valid_min: z.number(),
+  valid_max: z.number(),
+  reason: z.string(),
+});
+
 // Nested audit categories. bias_corrections was removed (2026-04-28).
 // Empty categories now emit truly empty arrays — no "(none applied)" sentinel.
-// range_clamps and warnings remain string arrays.
-// defaults_imputed is now a structured list of DefaultImputedInfo objects.
+// defaults_imputed and range_clamps are structured lists; warnings remains a string array.
 const AuditCategoriesSchema = z.object({
-  range_clamps: z.array(z.string()),
+  range_clamps: z.array(RangeClampSchema),
   defaults_imputed: z.array(DefaultImputedInfoSchema),
   warnings: z.array(z.string()),
 });
@@ -148,10 +160,12 @@ export const AuditBlockSchema = z.object({
   // Keys are field names (e.g. "ph", "organism", "temperature_celsius").
   // z.record() used because key set is unknown at schema time — depends on the query.
   field_audit: z.record(z.string(), FieldAuditSchema),
-  combase_model: CombaseModelSchema,
+  // null on failure paths (no model selected); object on success
+  combase_model: CombaseModelSchema.nullable(),
   // Nested audit sub-object with four category lists
   audit: AuditCategoriesSchema,
-  system: AuditSystemSchema,
+  // null on failure paths (system block written only after successful execution)
+  system: AuditSystemSchema.nullable(),
 });
 
 export const TranslationResponseSchema = z.object({

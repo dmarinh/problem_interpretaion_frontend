@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { TranslationResponseSchema, AuditBlockSchema, DefaultImputedInfoSchema } from './schema';
+import type { TranslationResponseSchema, AuditBlockSchema, DefaultImputedInfoSchema, RangeClampSchema } from './schema';
 
 export type TranslationResponse = z.infer<typeof TranslationResponseSchema>;
 export type Prediction = NonNullable<TranslationResponse['prediction']>;
@@ -18,3 +18,4 @@ export type RunnerUp = RetrievalBlock['runners_up'][number];
 export type CombaseModel = AuditBlock['combase_model'];
 export type AuditSystem = AuditBlock['system'];
 export type DefaultImputedInfo = z.infer<typeof DefaultImputedInfoSchema>;
+export type RangeClamp = z.infer<typeof RangeClampSchema>;

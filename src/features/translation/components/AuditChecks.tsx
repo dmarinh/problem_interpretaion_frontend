@@ -10,7 +10,7 @@
 //                   (legacy non-verbose responses)
 
 import { ArrowLeftRight, Info, AlertCircle } from 'lucide-react'
-import type { TranslationResponse, WarningItem, DefaultImputedInfo } from '../api/types'
+import type { TranslationResponse, WarningItem, DefaultImputedInfo, RangeClamp } from '../api/types'
 import { strings } from '../data/strings'
 import { formatFieldName, formatImputedValue } from '../utils/format'
 import { PanelChrome, SubHeading } from './primitives'
@@ -158,6 +158,28 @@ function DefaultImputedRow({ item }: { item: DefaultImputedInfo }) {
   )
 }
 
+function RangeClampCategory({ items }: { items: RangeClamp[] }) {
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <SubHeading>{strings.c5.groupRangeClamps}</SubHeading>
+      {items.length === 0 ? (
+        <NoneApplied />
+      ) : (
+        <div>
+          {items.map((item, idx) => (
+            <EntryRow
+              key={idx}
+              icon={<ArrowLeftRight size={16} color="var(--warning)" style={{ display: 'block' }} />}
+              field={item.field_name}
+              description={item.reason}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DefaultsImputedCategory({ items }: { items: DefaultImputedInfo[] }) {
   return (
     <div style={{ marginBottom: '20px' }}>
@@ -183,11 +205,7 @@ function VerboseChecks({ data }: { data: TranslationResponse }) {
 
   return (
     <>
-      <VerboseCategory
-        label={strings.c5.groupRangeClamps}
-        items={categories.range_clamps}
-        icon={<ArrowLeftRight size={16} color="var(--warning)" style={{ display: 'block', flexShrink: 0 }} />}
-      />
+      <RangeClampCategory items={categories.range_clamps} />
       <DefaultsImputedCategory items={categories.defaults_imputed} />
       <VerboseCategory
         label={strings.c5.groupWarnings}

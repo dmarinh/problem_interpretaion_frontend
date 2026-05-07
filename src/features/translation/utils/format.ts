@@ -196,7 +196,7 @@ export function formatImputedValue(fieldName: string, value: number | string): s
  * and direction. Used in the Provenance table's STANDARDIZATION column.
  * undefined inputs (no standardization block) → "—".
  */
-export function formatStdLabel(rule: string | undefined, direction: string | undefined): string {
+export function formatStdLabel(rule: string | undefined, direction: string | null | undefined): string {
   if (rule === 'range_bound_selection') {
     if (direction === 'upper') return 'Range bound (upper)'
     if (direction === 'lower') return 'Range bound (lower)'

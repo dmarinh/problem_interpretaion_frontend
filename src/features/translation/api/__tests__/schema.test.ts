@@ -225,6 +225,8 @@ describe('TranslationResponseSchema — verbose growth (with audit block)', () =
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
     const model = result.data.audit!.combase_model;
+    expect(model).not.toBeNull();
+    if (!model) return;
     expect(model.organism).toBe('BACILLUS_CEREUS');
     expect(model.model_type).toBe('growth');
     expect(model.model_id).toBe(1);
@@ -247,15 +249,17 @@ describe('TranslationResponseSchema — verbose growth (with audit block)', () =
   it('combase_model valid_ranges are [min, max] tuples', () => {
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
-    const ranges = result.data.audit!.combase_model.valid_ranges;
-    expect(ranges['temperature_celsius']?.[0]).toBe(5);
-    expect(ranges['temperature_celsius']?.[1]).toBe(34);
+    const ranges = result.data.audit!.combase_model?.valid_ranges;
+    expect(ranges?.['temperature_celsius']?.[0]).toBe(5);
+    expect(ranges?.['temperature_celsius']?.[1]).toBe(34);
   });
 
   it('system block has ptm_version, hashes, and datetimes', () => {
     const result = TranslationResponseSchema.safeParse(verboseGrowth);
     if (!result.success) return;
     const sys = result.data.audit!.system;
+    expect(sys).not.toBeNull();
+    if (!sys) return;
     expect(sys.ptm_version).toBeTypeOf('string');
     expect(sys.combase_model_table_hash).toBeTypeOf('string');
     expect(sys.rag_store_hash).toBeTypeOf('string');
@@ -366,6 +370,275 @@ describe('TranslationResponseSchema — verbose defaults (zarblax, two defaults_
     const cats = result.data.audit!.audit;
     expect(cats.range_clamps).toEqual([]);
     expect(cats.warnings).toEqual([]);
+  });
+});
+
+describe('StandardizationSchema + RangeClampSchema — regression (Errors 1–4)', () => {
+  // Minimal valid TranslationResponse base with an empty audit block.
+  // Each test overrides field_audit and/or audit.range_clamps to exercise a specific shape.
+  const minBase = {
+    success: true,
+    session_id: 'test',
+    status: 'completed',
+    created_at: '2026-05-01T00:00:00Z',
+    completed_at: '2026-05-01T00:00:01Z',
+    original_query: 'test',
+    prediction: null,
+    provenance: [],
+    warnings: [],
+    error: null,
+    audit: {
+      field_audit: {},
+      combase_model: {
+        organism: 'SALMONELLA',
+        model_type: 'growth',
+        model_id: 1,
+        selection_reason: 'default',
+        valid_ranges: { temperature_celsius: [5, 34] },
+        coefficients_str: 'a=1',
+      },
+      audit: { range_clamps: [], defaults_imputed: [], warnings: [] },
+      system: {
+        ptm_version: '1.0',
+        combase_model_table_hash: null,
+        rag_store_hash: null,
+        rag_ingested_at: null,
+        source_csv_audit_date: null,
+      },
+    },
+  };
+
+  // Error 1+2+3: default_imputed organism — direction null, before_value null, after_value string
+  it('default_imputed standardization accepts direction: null, before_value: null, after_value: string', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        field_audit: {
+          organism: {
+            source: 'default_imputed',
+            extraction: null,
+            standardization: {
+              rule: 'default_imputed',
+              direction: null,
+              reason: 'No organism specified; default applied',
+              before_value: null,
+              after_value: 'Salmonella',
+            },
+            retrieval: null,
+          },
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const std = result.data.audit!.field_audit['organism']?.standardization;
+    expect(std?.direction).toBeNull();
+    expect(std?.before_value).toBeNull();
+    expect(std?.after_value).toBe('Salmonella');
+  });
+
+  // Error 1: range_clamp rule also produces direction: null
+  it('range_clamp standardization accepts direction: null', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        field_audit: {
+          water_activity: {
+            source: 'rag_retrieval',
+            extraction: { method: 'regex+llm', raw_match: '1.0', parsed_range: null },
+            standardization: {
+              rule: 'range_clamp',
+              direction: null,
+              reason: 'Model constraint',
+              before_value: 1.0,
+              after_value: 0.99,
+            },
+            retrieval: null,
+          },
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.audit!.field_audit['water_activity']?.standardization?.direction).toBeNull();
+  });
+
+  // Error 4: range_clamps[] is now a structured object, not a string
+  it('range_clamps structured object parses with all required fields', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        audit: {
+          range_clamps: [
+            {
+              field_name: 'water_activity',
+              original_value: 1.0,
+              clamped_value: 0.99,
+              valid_min: 0.92,
+              valid_max: 0.99,
+              reason: 'water_activity 1.0 clamped to model maximum 0.99',
+            },
+          ],
+          defaults_imputed: [],
+          warnings: [],
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const clamp = result.data.audit!.audit.range_clamps[0];
+    expect(clamp?.field_name).toBe('water_activity');
+    expect(clamp?.original_value).toBe(1.0);
+    expect(clamp?.clamped_value).toBe(0.99);
+    expect(clamp?.reason).toBeTypeOf('string');
+  });
+
+  // Error 4: multi-step — field_name may include "(step N)" suffix
+  it('range_clamps field_name accepts step suffix "(step N)"', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        audit: {
+          range_clamps: [
+            {
+              field_name: 'temperature_celsius (step 1)',
+              original_value: 37,
+              clamped_value: 34,
+              valid_min: 5,
+              valid_max: 34,
+              reason: 'temperature_celsius (step 1) 37°C clamped to model maximum 34°C',
+            },
+          ],
+          defaults_imputed: [],
+          warnings: [],
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.audit!.audit.range_clamps[0]?.field_name).toBe('temperature_celsius (step 1)');
+  });
+
+  // Regression guard: range_bound_selection still parses with direction string and tuple before_value
+  it('range_bound_selection: direction string and tuple before_value still accepted (regression guard)', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        field_audit: {
+          ph: {
+            source: 'rag_retrieval',
+            extraction: { method: 'regex+llm', raw_match: '5.0–6.2', parsed_range: [5.0, 6.2] },
+            standardization: {
+              rule: 'range_bound_selection',
+              direction: 'upper',
+              reason: 'Growth scenario: upper bound selected',
+              before_value: [5.0, 6.2],
+              after_value: 6.2,
+            },
+            retrieval: null,
+          },
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const std = result.data.audit!.field_audit['ph']?.standardization;
+    expect(std?.direction).toBe('upper');
+    expect(std?.before_value).toEqual([5.0, 6.2]);
+    expect(std?.after_value).toBe(6.2);
+  });
+
+  // Rejects a three-element before_value (not a valid [min, max] tuple)
+  it('rejects before_value with three elements (not a valid min-max tuple)', () => {
+    const fixture = {
+      ...minBase,
+      audit: {
+        ...minBase.audit,
+        field_audit: {
+          ph: {
+            source: 'rag_retrieval',
+            extraction: null,
+            standardization: {
+              rule: 'range_bound_selection',
+              direction: 'upper',
+              reason: 'test',
+              before_value: [5.0, 6.0, 7.0],
+              after_value: 7.0,
+            },
+            retrieval: null,
+          },
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(false);
+  });
+
+  // Live capture shape: bread query — all five error paths in one fixture
+  it('bread query live capture shape: direction null (x2), before_value null, after_value string, range_clamps object', () => {
+    const fixture = {
+      ...minBase,
+      original_query: 'Predict pathogen growth on a slice of white bread at 25°C for 4 hours.',
+      audit: {
+        ...minBase.audit,
+        field_audit: {
+          water_activity: {
+            source: 'rag_retrieval',
+            extraction: { method: 'regex+llm', raw_match: '0.975', parsed_range: null },
+            standardization: {
+              rule: 'range_clamp',
+              direction: null,
+              reason: 'water_activity 0.975 is within valid range [0.92, 0.99]',
+              before_value: 0.975,
+              after_value: 0.975,
+            },
+            retrieval: null,
+          },
+          organism: {
+            source: 'default_imputed',
+            extraction: null,
+            standardization: {
+              rule: 'default_imputed',
+              direction: null,
+              reason: 'No organism specified; default Salmonella applied',
+              before_value: null,
+              after_value: 'Salmonella',
+            },
+            retrieval: null,
+          },
+        },
+        audit: {
+          range_clamps: [
+            {
+              field_name: 'water_activity',
+              original_value: 0.975,
+              clamped_value: 0.975,
+              valid_min: 0.92,
+              valid_max: 0.99,
+              reason: 'water_activity 0.975 accepted within model bounds [0.92, 0.99]',
+            },
+          ],
+          defaults_imputed: [],
+          warnings: [],
+        },
+      },
+    };
+    const result = TranslationResponseSchema.safeParse(fixture);
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      // Surface the specific Zod errors to make regressions easy to diagnose
+      console.error(result.error.issues);
+    }
   });
 });
 

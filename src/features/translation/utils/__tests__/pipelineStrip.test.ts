@@ -49,9 +49,9 @@ const BASE_COMBASE_MODEL = {
 
 // Empty audit categories — no real events.
 // Backend now emits truly empty arrays; no "(none applied)" sentinel.
-// defaults_imputed is a structured list; range_clamps and warnings are string lists.
+// defaults_imputed and range_clamps are structured lists; warnings is a string list.
 const CLEAN_CATS = {
-  range_clamps: [] as string[],
+  range_clamps: [] as { field_name: string; original_value: number; clamped_value: number; valid_min: number; valid_max: number; reason: string }[],
   defaults_imputed: [] as { field_name: string; default_value: number | string; reason: string }[],
   warnings: [] as string[],
 };
@@ -114,7 +114,10 @@ describe('derivePipelineStatus — fixture (b): one standardization block + warn
       },
       combase_model: BASE_COMBASE_MODEL,
       audit: {
-        range_clamps: ['Temperature clamped to upper bound 30°C', 'pH clamped to lower bound 4.9'],
+        range_clamps: [
+          { field_name: 'temperature_celsius', original_value: 35, clamped_value: 30, valid_min: 5, valid_max: 30, reason: 'Temperature clamped to upper bound 30°C' },
+          { field_name: 'ph', original_value: 4.8, clamped_value: 4.9, valid_min: 4.9, valid_max: 7.5, reason: 'pH clamped to lower bound 4.9' },
+        ],
         defaults_imputed: [] as { field_name: string; default_value: number | string; reason: string }[],
         warnings: ['Mu_max near boundary — interpret with caution'],
       },

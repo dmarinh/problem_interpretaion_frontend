@@ -23,6 +23,7 @@ import { PanelChrome, SubHeading, KeyValueRow, PanelRule } from './primitives'
 
 function ModelSection({ data }: { data: TranslationResponse }) {
   const model = data.audit!.combase_model
+  if (!model) return null
 
   return (
     <div>
@@ -77,7 +78,8 @@ function ModelSection({ data }: { data: TranslationResponse }) {
 const RANGE_ORDER = ['temperature_celsius', 'ph', 'water_activity']
 
 function RangesSection({ data }: { data: TranslationResponse }) {
-  const ranges = data.audit!.combase_model.valid_ranges
+  const ranges = data.audit!.combase_model?.valid_ranges
+  if (!ranges) return null
   const keys = Object.keys(ranges)
   const ordered = [
     ...RANGE_ORDER.filter((k) => k in ranges),
@@ -109,7 +111,8 @@ function RangesSection({ data }: { data: TranslationResponse }) {
 
 function CoefficientsRow({ data }: { data: TranslationResponse }) {
   const [showFull, setShowFull] = useState(false)
-  const raw = data.audit!.combase_model.coefficients_str
+  const raw = data.audit!.combase_model?.coefficients_str
+  if (!raw) return null
 
   return (
     <div>
@@ -167,6 +170,7 @@ const SYSTEM_PROVENANCE_ID = 'c6-system-provenance'
 function SystemProvenanceSection({ data }: { data: TranslationResponse }) {
   const [open, setOpen] = useState(false)
   const sys = data.audit!.system
+  if (!sys) return null
 
   return (
     <div>
