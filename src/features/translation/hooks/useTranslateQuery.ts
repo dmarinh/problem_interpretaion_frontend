@@ -40,8 +40,11 @@ export function useTranslateQuery(
   // Derive unified state — mutation takes priority over bootstrap.
   const data = mutation.data ?? bootstrap.data;
   const isLoading = mutation.isPending || (bootstrap.isLoading && !!initialQuery);
-  const isError = mutation.isError || bootstrap.isError;
-  const error = (mutation.error ?? bootstrap.error) as TranslateError | null;
+  // Bootstrap's error state outlives a successful mutation — TanStack Query does not
+  // clear the bootstrap query's error when an independent mutation resolves.
+  // Guard: if mutation has succeeded, treat the combined error state as clean.
+  const isError = mutation.isError || (bootstrap.isError && !mutation.isSuccess);
+  const error = (mutation.isSuccess ? null : mutation.error ?? bootstrap.error) as TranslateError | null;
   const currentQuery = mutation.variables ?? initialQuery;
 
   // Status chain per §9.3 — order matters.
